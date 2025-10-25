@@ -1,0 +1,3 @@
+ 20250919-195659,[command] python model_zoo/DeepFM/run_expid.py --expid DeepFM_avazu --gpu 0,[exp_id] DeepFM_avazu,[dataset_id] avazu_x4_3bbbc4c9,[train] N.A.,[val] logloss: 0.372121 - AUC: 0.792699,[test] logloss: 0.372003 - AUC: 0.792849
+ 20250923-121228,[command] python model_zoo/DeepFM/run_expid.py --expid DeepFM_avazu --gpu 0,[exp_id] DeepFM_avazu,[dataset_id] avazu_x4_3bbbc4c9,[train] N.A.,[val] logloss: 0.372085 - AUC: 0.792716,[test] logloss: 0.371931 - AUC: 0.792921
+ 20250923-135948,[command] python model_zoo/DeepFM/run_expid.py --expid DeepFM_avazu_gen --gpu 0,[exp_id] DeepFM_avazu_gen,[dataset_id] avazu_x4_3bbbc4c9,[train] N.A.,[val] logloss: 0.372019 - AUC: 0.793172,[test] logloss: 0.371921 - AUC: 0.793268

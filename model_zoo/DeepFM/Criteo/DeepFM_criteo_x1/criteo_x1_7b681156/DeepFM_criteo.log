@@ -1,0 +1,166 @@
+2025-09-23 17:57:11,250 P22636 INFO FuxiCTR version: 2.3.1
+2025-09-23 17:57:11,250 P22636 INFO Params: {
+    "batch_norm": "True",
+    "batch_size": "4096",
+    "concat_emb": "False",
+    "data_block_size": "-1",
+    "data_format": "csv",
+    "data_root": "../../data/Criteo/",
+    "dataset_id": "criteo_x1_7b681156",
+    "debug": "False",
+    "debug_mode": "False",
+    "early_stop_patience": "2",
+    "emb_activation": "linear",
+    "embedding_dim": "10",
+    "embedding_regularizer": "1e-05",
+    "epochs": "100",
+    "eval_steps": "None",
+    "every_x_epochs": "1",
+    "feature_cols": "[{'active': True, 'dtype': 'float', 'name': ['I1', 'I2', 'I3', 'I4', 'I5', 'I6', 'I7', 'I8', 'I9', 'I10', 'I11', 'I12', 'I13'], 'type': 'numeric'}, {'active': True, 'dtype': 'float', 'name': ['C1', 'C2', 'C3', 'C4', 'C5', 'C6', 'C7', 'C8', 'C9', 'C10', 'C11', 'C12', 'C13', 'C14', 'C15', 'C16', 'C17', 'C18', 'C19', 'C20', 'C21', 'C22', 'C23', 'C24', 'C25', 'C26'], 'type': 'categorical'}]",
+    "feature_config": "None",
+    "feature_specs": "None",
+    "gamma": "1",
+    "gpu": "0",
+    "group_id": "None",
+    "hidden_activations": "relu",
+    "hidden_units": "[400, 400, 400]",
+    "label_col": "{'dtype': 'float', 'name': 'label'}",
+    "learning_rate": "0.001",
+    "loss": "binary_crossentropy",
+    "metrics": "['AUC', 'logloss']",
+    "min_categr_count": "1",
+    "model": "DeepFM",
+    "model_id": "DeepFM_criteo",
+    "model_root": "./Criteo/DeepFM_criteo_x1/",
+    "monitor": "AUC",
+    "monitor_mode": "max",
+    "net_dropout": "0.1",
+    "net_regularizer": "0",
+    "num_workers": "3",
+    "optimizer": "adam",
+    "patience": "2",
+    "pickle_feature_encoder": "True",
+    "rebuild_dataset": "True",
+    "save_best_only": "True",
+    "seed": "2021",
+    "shuffle": "True",
+    "small_transformation": "False",
+    "symmetric": "False",
+    "task": "binary_classification",
+    "test_data": "../../data/Criteo/criteo_x1_7b681156/test.csv",
+    "train_data": "../../data/Criteo/criteo_x1_7b681156/train.csv",
+    "use_features": "None",
+    "use_hdf5": "True",
+    "valid_data": "../../data/Criteo/criteo_x1_7b681156/valid.csv",
+    "verbose": "1"
+}
+2025-09-23 17:57:11,252 P22636 INFO Set up feature processor...
+2025-09-23 17:57:11,252 P22636 WARNING Skip rebuilding ../../data/Criteo/criteo_x1_7b681156/feature_map.json. Please delete it manually if rebuilding is required.
+2025-09-23 17:57:11,252 P22636 INFO Reading files: ../../data/Criteo/criteo_x1_7b681156/train.csv
+2025-09-23 17:57:11,255 P22636 INFO Preprocess feature columns...
+2025-09-23 17:57:11,274 P22636 INFO Fit feature processor...
+2025-09-23 17:57:11,274 P22636 INFO Processing column: {'active': True, 'dtype': 'float', 'name': 'I1', 'type': 'numeric'}
+2025-09-23 17:57:25,836 P22636 INFO Processing column: {'active': True, 'dtype': 'float', 'name': 'I2', 'type': 'numeric'}
+2025-09-23 17:57:41,295 P22636 INFO Processing column: {'active': True, 'dtype': 'float', 'name': 'I3', 'type': 'numeric'}
+2025-09-23 17:57:57,325 P22636 INFO Processing column: {'active': True, 'dtype': 'float', 'name': 'I4', 'type': 'numeric'}
+2025-09-23 17:58:13,317 P22636 INFO Processing column: {'active': True, 'dtype': 'float', 'name': 'I5', 'type': 'numeric'}
+2025-09-23 17:58:29,147 P22636 INFO Processing column: {'active': True, 'dtype': 'float', 'name': 'I6', 'type': 'numeric'}
+2025-09-23 17:58:47,197 P22636 INFO Processing column: {'active': True, 'dtype': 'float', 'name': 'I7', 'type': 'numeric'}
+2025-09-23 17:59:03,643 P22636 INFO Processing column: {'active': True, 'dtype': 'float', 'name': 'I8', 'type': 'numeric'}
+2025-09-23 17:59:18,521 P22636 INFO Processing column: {'active': True, 'dtype': 'float', 'name': 'I9', 'type': 'numeric'}
+2025-09-23 17:59:33,185 P22636 INFO Processing column: {'active': True, 'dtype': 'float', 'name': 'I10', 'type': 'numeric'}
+2025-09-23 17:59:48,117 P22636 INFO Processing column: {'active': True, 'dtype': 'float', 'name': 'I11', 'type': 'numeric'}
+2025-09-23 18:00:04,141 P22636 INFO Processing column: {'active': True, 'dtype': 'float', 'name': 'I12', 'type': 'numeric'}
+2025-09-23 18:00:18,806 P22636 INFO Processing column: {'active': True, 'dtype': 'float', 'name': 'I13', 'type': 'numeric'}
+2025-09-23 18:00:34,778 P22636 INFO Processing column: {'active': True, 'dtype': 'float', 'name': 'C1', 'type': 'categorical'}
+2025-09-23 18:00:53,150 P22636 INFO Processing column: {'active': True, 'dtype': 'float', 'name': 'C2', 'type': 'categorical'}
+2025-09-23 18:01:12,335 P22636 INFO Processing column: {'active': True, 'dtype': 'float', 'name': 'C3', 'type': 'categorical'}
+2025-09-23 18:01:32,531 P22636 INFO Processing column: {'active': True, 'dtype': 'float', 'name': 'C4', 'type': 'categorical'}
+2025-09-23 18:01:51,368 P22636 INFO Processing column: {'active': True, 'dtype': 'float', 'name': 'C5', 'type': 'categorical'}
+2025-09-23 18:02:08,504 P22636 INFO Processing column: {'active': True, 'dtype': 'float', 'name': 'C6', 'type': 'categorical'}
+2025-09-23 18:02:26,235 P22636 INFO Processing column: {'active': True, 'dtype': 'float', 'name': 'C7', 'type': 'categorical'}
+2025-09-23 18:02:44,223 P22636 INFO Processing column: {'active': True, 'dtype': 'float', 'name': 'C8', 'type': 'categorical'}
+2025-09-23 18:03:01,029 P22636 INFO Processing column: {'active': True, 'dtype': 'float', 'name': 'C9', 'type': 'categorical'}
+2025-09-23 18:03:18,007 P22636 INFO Processing column: {'active': True, 'dtype': 'float', 'name': 'C10', 'type': 'categorical'}
+2025-09-23 18:03:35,912 P22636 INFO Processing column: {'active': True, 'dtype': 'float', 'name': 'C11', 'type': 'categorical'}
+2025-09-23 18:03:52,827 P22636 INFO Processing column: {'active': True, 'dtype': 'float', 'name': 'C12', 'type': 'categorical'}
+2025-09-23 18:04:11,861 P22636 INFO Processing column: {'active': True, 'dtype': 'float', 'name': 'C13', 'type': 'categorical'}
+2025-09-23 18:04:29,086 P22636 INFO Processing column: {'active': True, 'dtype': 'float', 'name': 'C14', 'type': 'categorical'}
+2025-09-23 18:04:46,177 P22636 INFO Processing column: {'active': True, 'dtype': 'float', 'name': 'C15', 'type': 'categorical'}
+2025-09-23 18:05:03,477 P22636 INFO Processing column: {'active': True, 'dtype': 'float', 'name': 'C16', 'type': 'categorical'}
+2025-09-23 18:05:22,555 P22636 INFO Processing column: {'active': True, 'dtype': 'float', 'name': 'C17', 'type': 'categorical'}
+2025-09-23 18:05:40,265 P22636 INFO Processing column: {'active': True, 'dtype': 'float', 'name': 'C18', 'type': 'categorical'}
+2025-09-23 18:05:57,508 P22636 INFO Processing column: {'active': True, 'dtype': 'float', 'name': 'C19', 'type': 'categorical'}
+2025-09-23 18:06:14,946 P22636 INFO Processing column: {'active': True, 'dtype': 'float', 'name': 'C20', 'type': 'categorical'}
+2025-09-23 18:06:32,525 P22636 INFO Processing column: {'active': True, 'dtype': 'float', 'name': 'C21', 'type': 'categorical'}
+2025-09-23 18:06:52,031 P22636 INFO Processing column: {'active': True, 'dtype': 'float', 'name': 'C22', 'type': 'categorical'}
+2025-09-23 18:07:10,579 P22636 INFO Processing column: {'active': True, 'dtype': 'float', 'name': 'C23', 'type': 'categorical'}
+2025-09-23 18:07:28,105 P22636 INFO Processing column: {'active': True, 'dtype': 'float', 'name': 'C24', 'type': 'categorical'}
+2025-09-23 18:07:47,606 P22636 INFO Processing column: {'active': True, 'dtype': 'float', 'name': 'C25', 'type': 'categorical'}
+2025-09-23 18:08:05,423 P22636 INFO Processing column: {'active': True, 'dtype': 'float', 'name': 'C26', 'type': 'categorical'}
+2025-09-23 18:08:23,383 P22636 INFO Set column index...
+2025-09-23 18:08:23,384 P22636 INFO Save feature_map to json: ../../data/Criteo/criteo_x1_7b681156/feature_map.json
+2025-09-23 18:08:23,385 P22636 INFO Pickle feature_encode: ../../data/Criteo/criteo_x1_7b681156/feature_processor.pkl
+2025-09-23 18:08:23,517 P22636 INFO Save feature_vocab to json: ../../data/Criteo/criteo_x1_7b681156/feature_vocab.json
+2025-09-23 18:08:25,301 P22636 INFO Set feature processor done.
+2025-09-23 18:08:50,689 P22636 INFO Transform feature columns to IDs...
+2025-09-23 18:11:18,397 P22636 INFO Saving data to parquet: ../../data/Criteo/criteo_x1_7b681156/train.parquet
+2025-09-23 18:11:37,005 P22636 INFO Reading files: ../../data/Criteo/criteo_x1_7b681156/valid.csv
+2025-09-23 18:11:37,006 P22636 INFO Preprocess feature columns...
+2025-09-23 18:11:41,827 P22636 INFO Transform feature columns to IDs...
+2025-09-23 18:12:18,224 P22636 INFO Saving data to parquet: ../../data/Criteo/criteo_x1_7b681156/valid.parquet
+2025-09-23 18:12:22,231 P22636 INFO Reading files: ../../data/Criteo/criteo_x1_7b681156/test.csv
+2025-09-23 18:12:22,232 P22636 INFO Preprocess feature columns...
+2025-09-23 18:12:24,367 P22636 INFO Transform feature columns to IDs...
+2025-09-23 18:12:44,325 P22636 INFO Saving data to parquet: ../../data/Criteo/criteo_x1_7b681156/test.parquet
+2025-09-23 18:12:46,443 P22636 INFO Transform csv data to parquet done.
+2025-09-23 18:12:46,443 P22636 INFO Load feature_map from json: ../../data/Criteo/criteo_x1_7b681156/feature_map.json
+2025-09-23 18:12:46,444 P22636 INFO Set column index...
+2025-09-23 18:12:46,444 P22636 INFO Feature specs: {
+    "C1": "{'source': '', 'type': 'categorical', 'padding_idx': 0, 'vocab_size': 1462}",
+    "C10": "{'source': '', 'type': 'categorical', 'padding_idx': 0, 'vocab_size': 54712}",
+    "C11": "{'source': '', 'type': 'categorical', 'padding_idx': 0, 'vocab_size': 5350}",
+    "C12": "{'source': '', 'type': 'categorical', 'padding_idx': 0, 'vocab_size': 409749}",
+    "C13": "{'source': '', 'type': 'categorical', 'padding_idx': 0, 'vocab_size': 3182}",
+    "C14": "{'source': '', 'type': 'categorical', 'padding_idx': 0, 'vocab_size': 29}",
+    "C15": "{'source': '', 'type': 'categorical', 'padding_idx': 0, 'vocab_size': 12500}",
+    "C16": "{'source': '', 'type': 'categorical', 'padding_idx': 0, 'vocab_size': 365811}",
+    "C17": "{'source': '', 'type': 'categorical', 'padding_idx': 0, 'vocab_size': 12}",
+    "C18": "{'source': '', 'type': 'categorical', 'padding_idx': 0, 'vocab_size': 4934}",
+    "C19": "{'source': '', 'type': 'categorical', 'padding_idx': 0, 'vocab_size': 2096}",
+    "C2": "{'source': '', 'type': 'categorical', 'padding_idx': 0, 'vocab_size': 560}",
+    "C20": "{'source': '', 'type': 'categorical', 'padding_idx': 0, 'vocab_size': 6}",
+    "C21": "{'source': '', 'type': 'categorical', 'padding_idx': 0, 'vocab_size': 397981}",
+    "C22": "{'source': '', 'type': 'categorical', 'padding_idx': 0, 'vocab_size': 20}",
+    "C23": "{'source': '', 'type': 'categorical', 'padding_idx': 0, 'vocab_size': 17}",
+    "C24": "{'source': '', 'type': 'categorical', 'padding_idx': 0, 'vocab_size': 88608}",
+    "C25": "{'source': '', 'type': 'categorical', 'padding_idx': 0, 'vocab_size': 98}",
+    "C26": "{'source': '', 'type': 'categorical', 'padding_idx': 0, 'vocab_size': 64073}",
+    "C3": "{'source': '', 'type': 'categorical', 'padding_idx': 0, 'vocab_size': 413424}",
+    "C4": "{'source': '', 'type': 'categorical', 'padding_idx': 0, 'vocab_size': 248543}",
+    "C5": "{'source': '', 'type': 'categorical', 'padding_idx': 0, 'vocab_size': 307}",
+    "C6": "{'source': '', 'type': 'categorical', 'padding_idx': 0, 'vocab_size': 23}",
+    "C7": "{'source': '', 'type': 'categorical', 'padding_idx': 0, 'vocab_size': 12192}",
+    "C8": "{'source': '', 'type': 'categorical', 'padding_idx': 0, 'vocab_size': 635}",
+    "C9": "{'source': '', 'type': 'categorical', 'padding_idx': 0, 'vocab_size': 5}",
+    "I1": "{'source': '', 'type': 'numeric'}",
+    "I10": "{'source': '', 'type': 'numeric'}",
+    "I11": "{'source': '', 'type': 'numeric'}",
+    "I12": "{'source': '', 'type': 'numeric'}",
+    "I13": "{'source': '', 'type': 'numeric'}",
+    "I2": "{'source': '', 'type': 'numeric'}",
+    "I3": "{'source': '', 'type': 'numeric'}",
+    "I4": "{'source': '', 'type': 'numeric'}",
+    "I5": "{'source': '', 'type': 'numeric'}",
+    "I6": "{'source': '', 'type': 'numeric'}",
+    "I7": "{'source': '', 'type': 'numeric'}",
+    "I8": "{'source': '', 'type': 'numeric'}",
+    "I9": "{'source': '', 'type': 'numeric'}"
+}
+2025-09-23 18:12:51,426 P22636 INFO Total number of parameters: 23433666.
+2025-09-23 18:12:51,426 P22636 INFO Loading datasets...
+2025-09-23 18:15:05,110 P22636 INFO Train samples: total/33003326, blocks/1
+2025-09-23 18:15:10,697 P22636 INFO Validation samples: total/8250124, blocks/1
+2025-09-23 18:15:10,699 P22636 INFO Loading train and validation data done.
+2025-09-23 18:15:10,706 P22636 INFO Start training: 8058 batches/epoch
+2025-09-23 18:15:10,706 P22636 INFO ************ Epoch=1 start ************

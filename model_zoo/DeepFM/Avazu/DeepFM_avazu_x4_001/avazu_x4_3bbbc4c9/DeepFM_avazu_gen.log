@@ -1,0 +1,163 @@
+2025-09-23 12:12:33,485 P27144 INFO FuxiCTR version: 2.3.1
+2025-09-23 12:12:33,486 P27144 INFO Params: {
+    "batch_norm": "False",
+    "batch_size": "10000",
+    "concat_emb": "True",
+    "data_format": "csv",
+    "data_root": "../../data/Avazu/",
+    "dataset_id": "avazu_x4_3bbbc4c9",
+    "debug": "False",
+    "debug_mode": "False",
+    "early_stop_patience": "2",
+    "emb_activation": "relu",
+    "embedding_dim": "16",
+    "embedding_dropout": "0",
+    "embedding_regularizer": "0",
+    "epochs": "100",
+    "eval_steps": "None",
+    "every_x_epochs": "1",
+    "feature_cols": "[{'active': False, 'dtype': 'str', 'name': 'id', 'type': 'categorical'}, {'active': True, 'dtype': 'str', 'name': 'hour', 'preprocess': 'convert_hour', 'type': 'categorical'}, {'active': True, 'dtype': 'str', 'name': ['C1', 'banner_pos', 'site_id', 'site_domain', 'site_category', 'app_id', 'app_domain', 'app_category', 'device_id', 'device_ip', 'device_model', 'device_type', 'device_conn_type', 'C14', 'C15', 'C16', 'C17', 'C18', 'C19', 'C20', 'C21'], 'type': 'categorical'}, {'active': True, 'dtype': 'str', 'name': 'weekday', 'preprocess': 'convert_weekday', 'type': 'categorical'}, {'active': True, 'dtype': 'str', 'name': 'weekend', 'preprocess': 'convert_weekend', 'type': 'categorical'}]",
+    "feature_config": "None",
+    "feature_specs": "None",
+    "gamma": "6",
+    "gpu": "0",
+    "group_id": "None",
+    "hidden_activations": "relu",
+    "hidden_units": "[2000, 2000, 2000, 2000]",
+    "label_col": "{'dtype': 'float', 'name': 'click'}",
+    "learning_rate": "0.001",
+    "loss": "binary_crossentropy",
+    "metrics": "['logloss', 'AUC']",
+    "min_categr_count": "2",
+    "model": "DeepFM",
+    "model_id": "DeepFM_avazu_gen",
+    "model_root": "./Avazu/DeepFM_avazu_x4_001/",
+    "monitor": "{'AUC': 1, 'logloss': -1}",
+    "monitor_mode": "max",
+    "net_dropout": "0",
+    "net_regularizer": "0",
+    "num_workers": "3",
+    "optimizer": "adam",
+    "patience": "2",
+    "pickle_feature_encoder": "True",
+    "rebuild_dataset": "True",
+    "save_best_only": "True",
+    "seed": "2019",
+    "shuffle": "True",
+    "small_transformation": "False",
+    "symmetric": "False",
+    "task": "binary_classification",
+    "test_data": "../../data/Avazu/avazu_x4_3bbbc4c9/test.csv",
+    "train_data": "../../data/Avazu/avazu_x4_3bbbc4c9/train.csv",
+    "use_features": "None",
+    "use_hdf5": "True",
+    "valid_data": "../../data/Avazu/avazu_x4_3bbbc4c9/valid.csv",
+    "verbose": "1",
+    "workers": "3"
+}
+2025-09-23 12:12:33,487 P27144 INFO Set up feature processor...
+2025-09-23 12:12:33,487 P27144 WARNING Skip rebuilding ../../data/Avazu/avazu_x4_3bbbc4c9/feature_map.json. Please delete it manually if rebuilding is required.
+2025-09-23 12:12:33,487 P27144 INFO Reading files: ../../data/Avazu/avazu_x4_3bbbc4c9/train.csv
+2025-09-23 12:12:33,489 P27144 INFO Preprocess feature columns...
+2025-09-23 12:12:33,503 P27144 INFO Fit feature processor...
+2025-09-23 12:12:33,503 P27144 INFO Processing column: {'active': True, 'dtype': 'str', 'name': 'hour', 'preprocess': 'convert_hour', 'type': 'categorical'}
+2025-09-23 12:12:46,626 P27144 INFO Processing column: {'active': True, 'dtype': 'str', 'name': 'C1', 'type': 'categorical'}
+2025-09-23 12:12:50,747 P27144 INFO Processing column: {'active': True, 'dtype': 'str', 'name': 'banner_pos', 'type': 'categorical'}
+2025-09-23 12:12:54,920 P27144 INFO Processing column: {'active': True, 'dtype': 'str', 'name': 'site_id', 'type': 'categorical'}
+2025-09-23 12:12:59,115 P27144 INFO Processing column: {'active': True, 'dtype': 'str', 'name': 'site_domain', 'type': 'categorical'}
+2025-09-23 12:13:03,488 P27144 INFO Processing column: {'active': True, 'dtype': 'str', 'name': 'site_category', 'type': 'categorical'}
+2025-09-23 12:13:07,928 P27144 INFO Processing column: {'active': True, 'dtype': 'str', 'name': 'app_id', 'type': 'categorical'}
+2025-09-23 12:13:12,130 P27144 INFO Processing column: {'active': True, 'dtype': 'str', 'name': 'app_domain', 'type': 'categorical'}
+2025-09-23 12:13:16,379 P27144 INFO Processing column: {'active': True, 'dtype': 'str', 'name': 'app_category', 'type': 'categorical'}
+2025-09-23 12:13:20,883 P27144 INFO Processing column: {'active': True, 'dtype': 'str', 'name': 'device_id', 'type': 'categorical'}
+2025-09-23 12:13:32,406 P27144 INFO Processing column: {'active': True, 'dtype': 'str', 'name': 'device_ip', 'type': 'categorical'}
+2025-09-23 12:14:06,856 P27144 INFO Processing column: {'active': True, 'dtype': 'str', 'name': 'device_model', 'type': 'categorical'}
+2025-09-23 12:14:17,652 P27144 INFO Processing column: {'active': True, 'dtype': 'str', 'name': 'device_type', 'type': 'categorical'}
+2025-09-23 12:14:22,932 P27144 INFO Processing column: {'active': True, 'dtype': 'str', 'name': 'device_conn_type', 'type': 'categorical'}
+2025-09-23 12:14:28,311 P27144 INFO Processing column: {'active': True, 'dtype': 'str', 'name': 'C14', 'type': 'categorical'}
+2025-09-23 12:14:34,000 P27144 INFO Processing column: {'active': True, 'dtype': 'str', 'name': 'C15', 'type': 'categorical'}
+2025-09-23 12:14:39,117 P27144 INFO Processing column: {'active': True, 'dtype': 'str', 'name': 'C16', 'type': 'categorical'}
+2025-09-23 12:14:44,145 P27144 INFO Processing column: {'active': True, 'dtype': 'str', 'name': 'C17', 'type': 'categorical'}
+2025-09-23 12:14:49,663 P27144 INFO Processing column: {'active': True, 'dtype': 'str', 'name': 'C18', 'type': 'categorical'}
+2025-09-23 12:14:54,881 P27144 INFO Processing column: {'active': True, 'dtype': 'str', 'name': 'C19', 'type': 'categorical'}
+2025-09-23 12:15:00,242 P27144 INFO Processing column: {'active': True, 'dtype': 'str', 'name': 'C20', 'type': 'categorical'}
+2025-09-23 12:15:05,582 P27144 INFO Processing column: {'active': True, 'dtype': 'str', 'name': 'C21', 'type': 'categorical'}
+2025-09-23 12:15:10,900 P27144 INFO Processing column: {'active': True, 'dtype': 'str', 'name': 'weekday', 'preprocess': 'convert_weekday', 'type': 'categorical'}
+2025-09-23 12:15:52,542 P27144 INFO Processing column: {'active': True, 'dtype': 'str', 'name': 'weekend', 'preprocess': 'convert_weekend', 'type': 'categorical'}
+2025-09-23 12:16:37,776 P27144 INFO Set column index...
+2025-09-23 12:16:37,777 P27144 INFO Save feature_map to json: ../../data/Avazu/avazu_x4_3bbbc4c9/feature_map.json
+2025-09-23 12:16:37,778 P27144 INFO Pickle feature_encode: ../../data/Avazu/avazu_x4_3bbbc4c9/feature_processor.pkl
+2025-09-23 12:16:39,079 P27144 INFO Save feature_vocab to json: ../../data/Avazu/avazu_x4_3bbbc4c9/feature_vocab.json
+2025-09-23 12:16:43,356 P27144 INFO Set feature processor done.
+2025-09-23 12:18:37,125 P27144 INFO Transform feature columns to IDs...
+2025-09-23 12:20:39,511 P27144 INFO Saving data to parquet: ../../data/Avazu/avazu_x4_3bbbc4c9/train.parquet
+2025-09-23 12:20:48,550 P27144 INFO Reading files: ../../data/Avazu/avazu_x4_3bbbc4c9/valid.csv
+2025-09-23 12:20:48,554 P27144 INFO Preprocess feature columns...
+2025-09-23 12:21:01,355 P27144 INFO Transform feature columns to IDs...
+2025-09-23 12:21:15,701 P27144 INFO Saving data to parquet: ../../data/Avazu/avazu_x4_3bbbc4c9/valid.parquet
+2025-09-23 12:21:16,702 P27144 INFO Reading files: ../../data/Avazu/avazu_x4_3bbbc4c9/test.csv
+2025-09-23 12:21:16,702 P27144 INFO Preprocess feature columns...
+2025-09-23 12:21:27,813 P27144 INFO Transform feature columns to IDs...
+2025-09-23 12:21:42,101 P27144 INFO Saving data to parquet: ../../data/Avazu/avazu_x4_3bbbc4c9/test.parquet
+2025-09-23 12:21:43,104 P27144 INFO Transform csv data to parquet done.
+2025-09-23 12:21:43,104 P27144 INFO Load feature_map from json: ../../data/Avazu/avazu_x4_3bbbc4c9/feature_map.json
+2025-09-23 12:21:43,105 P27144 INFO Set column index...
+2025-09-23 12:21:43,105 P27144 INFO Feature specs: {
+    "C1": "{'source': '', 'type': 'categorical', 'padding_idx': 0, 'vocab_size': 9}",
+    "C14": "{'source': '', 'type': 'categorical', 'padding_idx': 0, 'vocab_size': 2556}",
+    "C15": "{'source': '', 'type': 'categorical', 'padding_idx': 0, 'vocab_size': 10}",
+    "C16": "{'source': '', 'type': 'categorical', 'padding_idx': 0, 'vocab_size': 11}",
+    "C17": "{'source': '', 'type': 'categorical', 'padding_idx': 0, 'vocab_size': 434}",
+    "C18": "{'source': '', 'type': 'categorical', 'padding_idx': 0, 'vocab_size': 6}",
+    "C19": "{'source': '', 'type': 'categorical', 'padding_idx': 0, 'vocab_size': 70}",
+    "C20": "{'source': '', 'type': 'categorical', 'padding_idx': 0, 'vocab_size': 173}",
+    "C21": "{'source': '', 'type': 'categorical', 'padding_idx': 0, 'vocab_size': 62}",
+    "app_category": "{'source': '', 'type': 'categorical', 'padding_idx': 0, 'vocab_size': 33}",
+    "app_domain": "{'source': '', 'type': 'categorical', 'padding_idx': 0, 'vocab_size': 400}",
+    "app_id": "{'source': '', 'type': 'categorical', 'padding_idx': 0, 'vocab_size': 6545}",
+    "banner_pos": "{'source': '', 'type': 'categorical', 'padding_idx': 0, 'vocab_size': 9}",
+    "device_conn_type": "{'source': '', 'type': 'categorical', 'padding_idx': 0, 'vocab_size': 6}",
+    "device_id": "{'source': '', 'type': 'categorical', 'padding_idx': 0, 'vocab_size': 820509}",
+    "device_ip": "{'source': '', 'type': 'categorical', 'padding_idx': 0, 'vocab_size': 2903322}",
+    "device_model": "{'source': '', 'type': 'categorical', 'padding_idx': 0, 'vocab_size': 7259}",
+    "device_type": "{'source': '', 'type': 'categorical', 'padding_idx': 0, 'vocab_size': 7}",
+    "hour": "{'source': '', 'type': 'categorical', 'padding_idx': 0, 'vocab_size': 26}",
+    "site_category": "{'source': '', 'type': 'categorical', 'padding_idx': 0, 'vocab_size': 27}",
+    "site_domain": "{'source': '', 'type': 'categorical', 'padding_idx': 0, 'vocab_size': 5461}",
+    "site_id": "{'source': '', 'type': 'categorical', 'padding_idx': 0, 'vocab_size': 4051}",
+    "weekday": "{'source': '', 'type': 'categorical', 'padding_idx': 0, 'vocab_size': 9}",
+    "weekend": "{'source': '', 'type': 'categorical', 'padding_idx': 0, 'vocab_size': 4}"
+}
+2025-09-23 12:21:45,834 P27144 INFO Total number of parameters: 76692443.
+2025-09-23 12:21:45,834 P27144 INFO Loading datasets...
+2025-09-23 12:22:25,695 P27144 INFO Train samples: total/32343172, blocks/1
+2025-09-23 12:22:26,540 P27144 INFO Validation samples: total/4042897, blocks/1
+2025-09-23 12:22:26,540 P27144 INFO Loading train and validation data done.
+2025-09-23 12:22:26,541 P27144 INFO Start training: 3235 batches/epoch
+2025-09-23 12:22:26,541 P27144 INFO ************ Epoch=1 start ************
+2025-09-23 13:00:06,642 P27144 INFO Train loss: 0.379593
+2025-09-23 13:00:06,678 P27144 INFO Evaluation @epoch 2 - batch 3235: 
+2025-09-23 13:01:14,452 P27144 INFO [Metrics] AUC: 0.793172 - logloss: 0.372019
+2025-09-23 13:01:14,455 P27144 INFO Save best model: monitor(max)=0.421153
+2025-09-23 13:01:30,546 P27144 INFO ************ Epoch=2 end ************
+2025-09-23 13:30:15,797 P27144 INFO Train loss: 0.331659
+2025-09-23 13:30:15,805 P27144 INFO Evaluation @epoch 3 - batch 3235: 
+2025-09-23 13:31:23,577 P27144 INFO [Metrics] AUC: 0.788379 - logloss: 0.380290
+2025-09-23 13:31:23,580 P27144 INFO Monitor(max)=0.408089 STOP!
+2025-09-23 13:31:23,580 P27144 INFO Reduce learning rate on plateau: 0.000100
+2025-09-23 13:31:38,598 P27144 INFO ************ Epoch=3 end ************
+2025-09-23 13:56:14,366 P27144 INFO Train loss: 0.288945
+2025-09-23 13:56:14,372 P27144 INFO Evaluation @epoch 4 - batch 3235: 
+2025-09-23 13:57:22,112 P27144 INFO [Metrics] AUC: 0.776473 - logloss: 0.427085
+2025-09-23 13:57:22,114 P27144 INFO Monitor(max)=0.349389 STOP!
+2025-09-23 13:57:22,114 P27144 INFO Reduce learning rate on plateau: 0.000010
+2025-09-23 13:57:22,115 P27144 INFO ********* Epoch=4 early stop *********
+2025-09-23 13:57:37,134 P27144 INFO Training finished.
+2025-09-23 13:57:37,134 P27144 INFO Load best model: /Users/zhirong/GitHub/GE4Rec/model_zoo/DeepFM/Avazu/DeepFM_avazu_x4_001/avazu_x4_3bbbc4c9/DeepFM_avazu_gen.model
+2025-09-23 13:57:37,316 P27144 INFO ****** Validation evaluation ******
+2025-09-23 13:58:41,847 P27144 INFO [Metrics] logloss: 0.372019 - AUC: 0.793172
+2025-09-23 13:58:42,664 P27144 INFO ******** Test evaluation ********
+2025-09-23 13:58:42,664 P27144 INFO Loading datasets...
+2025-09-23 13:58:43,669 P27144 INFO Test samples: total/4042898, blocks/1
+2025-09-23 13:58:43,673 P27144 INFO Loading test data done.
+2025-09-23 13:59:48,492 P27144 INFO [Metrics] logloss: 0.371921 - AUC: 0.793268

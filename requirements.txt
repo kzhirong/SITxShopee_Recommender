@@ -1,0 +1,22 @@
+# Core ML and data processing
+torch>=2.0.0
+numpy
+pandas
+scikit-learn
+PyYAML
+h5py
+tqdm
+pyarrow
+polars
+
+# For LLM integration (Phase 2)
+transformers>=4.30.0
+
+# Visualization and utilities
+matplotlib
+seaborn
+gpustat
+ipykernel
+
+# Legacy (may not be needed)
+keras_preprocessing
