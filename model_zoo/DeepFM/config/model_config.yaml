@@ -160,7 +160,7 @@ DeepFM_avazu_normalized_base: &default_avazu_normalized
     task: binary_classification
     use_hdf5: true
     verbose: 1
-    workers: 3
+    workers: 8
     emb_activation: linear
     symmetric: false
     concat_emb: false

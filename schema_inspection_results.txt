@@ -1,0 +1,378 @@
+================================================================================
+RAW AVAZU DATASET SCHEMA INSPECTION
+================================================================================
+
+════════════════════════════════════════════════════════════════════════════════
+Dataset: Avazu_x1
+Path: data/Avazu/Avazu_x1
+════════════════════════════════════════════════════════════════════════════════
+✓ Found: train.csv
+Reading first 2,000,000 rows...
+
+Dataset size: 5000000 rows, 23 columns
+
+────────────────────────────────────────────────────────────────────────────────
+COLUMN DETAILS (with unique value counts)
+────────────────────────────────────────────────────────────────────────────────
+#   Column Name          Type       Unique Values   Sample Values
+────────────────────────────────────────────────────────────────────────────────
+1   label                int64      2               0, 1
+2   feat_1               int64      7               1, 2, 3
+3   feat_2               int64      7               9, 10, 13
+4   feat_3               int64      2,850           18, 177, 37
+5   feat_4               int64      3,215           3582, 3712, 3602
+6   feat_5               int64      22              7908, 7918, 7907
+7   feat_6               int64      3,623           7931, 7948, 8564
+8   feat_7               int64      242             12997, 13002, 12998
+9   feat_8               int64      29              13304, 13305, 13306
+10  feat_9               int64      77,696          13335, 13337, 14859
+11  feat_10              int64      402,314         291531, 1063856, 291516
+12  feat_11              int64      5,830           1534664, 1534420, 1534409
+13  feat_12              int64      4               1541001, 1541002, 1541003
+14  feat_13              int64      4               1541008, 1541007, 1541009
+15  feat_14              int64      787             1541030, 1541026, 1541250
+16  feat_15              int64      8               1543495, 1543496, 1543497
+17  feat_16              int64      9               1543504, 1543505, 1543506
+18  feat_17              int64      194             1543514, 1543628, 1543551
+19  feat_18              int64      4               1543945, 1543946, 1543947
+20  feat_19              int64      45              1543950, 1543965, 1543951
+21  feat_20              int64      168             1544018, 1544019, 1544022
+22  feat_21              int64      38              1544189, 1544193, 1544202
+23  feat_22              int64      24              1544270, 1544268, 1544265
+
+✓ Label column: 'label'
+  CTR: 0.1738 (869,006 clicks / 5,000,000 samples)
+
+────────────────────────────────────────────────────────────────────────────────
+SPECIAL ANALYSIS: Temporal Feature Pattern Confirmation
+────────────────────────────────────────────────────────────────────────────────
+
+✓ Avazu_x1 Mystery Feature Analysis:
+
+  feat_22 investigation (hypothesis: hour-of-day):
+    Unique values: [np.int64(1544248), np.int64(1544249), np.int64(1544250), np.int64(1544251), np.int64(1544252), np.int64(1544253), np.int64(1544254), np.int64(1544255), np.int64(1544256), np.int64(1544257), np.int64(1544258), np.int64(1544259), np.int64(1544260), np.int64(1544261), np.int64(1544262), np.int64(1544263), np.int64(1544264), np.int64(1544265), np.int64(1544266), np.int64(1544267), np.int64(1544268), np.int64(1544269), np.int64(1544270), np.int64(1544271)]
+    Count: 24
+    Min: 1544248, Max: 1544271
+    Sample distribution:
+feat_22
+1544248    190481
+1544249    230917
+1544250    143620
+1544251    174531
+1544252    200028
+1544253    207244
+1544254    176156
+1544255    175666
+1544256    171869
+1544257    171933
+1544258    531090
+1544259    465659
+1544260    209311
+1544261    239720
+1544262    152365
+1544263    330361
+1544264    119775
+1544265    310315
+1544266    112017
+1544267     89501
+1544268    238053
+1544269     88436
+1544270    197012
+1544271     73940
+Name: count, dtype: int64
+    ⚠️  Likely hour-of-day but missing some hours
+
+  feat_21 investigation:
+    Unique values: [np.int64(1544187), np.int64(1544188), np.int64(1544189), np.int64(1544190), np.int64(1544191), np.int64(1544192), np.int64(1544193), np.int64(1544194), np.int64(1544195), np.int64(1544196), np.int64(1544197), np.int64(1544198), np.int64(1544199), np.int64(1544201), np.int64(1544202), np.int64(1544204), np.int64(1544205), np.int64(1544206), np.int64(1544207), np.int64(1544209), np.int64(1544210), np.int64(1544212), np.int64(1544213), np.int64(1544214), np.int64(1544215), np.int64(1544217), np.int64(1544218), np.int64(1544222), np.int64(1544224), np.int64(1544225), np.int64(1544226), np.int64(1544231), np.int64(1544233), np.int64(1544234), np.int64(1544235), np.int64(1544236), np.int64(1544243), np.int64(1544246)]
+    Count: 38
+    Min: 1544187, Max: 1544246
+    Sample distribution:
+feat_21
+1544187    771975
+1544188    591344
+1544189    520684
+1544190    291100
+1544191     36405
+1544192    326229
+1544193    167910
+1544194    263470
+1544195    224737
+1544196     51190
+1544197     96537
+1544198    131100
+1544199    112853
+1544201    423656
+1544202    218924
+1544204     38228
+1544205     15397
+1544206     63192
+1544207    187572
+1544209     25287
+1544210     18424
+1544212     32465
+1544213     58102
+1544214     57085
+1544215    106894
+1544217       541
+1544218     75332
+1544222     14592
+1544224     46705
+1544225      5578
+1544226     12567
+1544231      1613
+1544233      1965
+1544234        10
+1544235      4040
+1544236      2895
+1544243      3148
+1544246       254
+Name: count, dtype: int64
+    ❓ Unknown pattern - might be:
+       - High-cardinality categorical feature
+       - Device/browser ID
+       - Geographic feature
+
+    Additional clues for feat_21:
+
+      Contingency table shape: feat_21 x feat_22 = (38, 24)
+
+════════════════════════════════════════════════════════════════════════════════
+Dataset: Avazu_x2
+Path: data/Avazu/Avazu_x2
+════════════════════════════════════════════════════════════════════════════════
+✓ Found: train.csv
+Reading first 2,000,000 rows...
+
+Dataset size: 5000000 rows, 25 columns
+
+────────────────────────────────────────────────────────────────────────────────
+COLUMN DETAILS (with unique value counts)
+────────────────────────────────────────────────────────────────────────────────
+#   Column Name          Type       Unique Values   Sample Values
+────────────────────────────────────────────────────────────────────────────────
+1   click                int64      2               0, 1
+2   C1                   int64      7               3, 4, 5
+3   banner_pos           int64      7               8, 7, 11
+4   site_id              int64      3,055           313, 1585, 1317
+5   site_domain          int64      3,335           6205, 4621, 3692
+6   site_category        int64      23              6655, 6649, 6651
+7   app_id               int64      3,820           7179, 9569, 10470
+8   app_domain           int64      244             10672, 10716, 10818
+9   app_category         int64      28              10929, 10925, 10914
+10  device_id            int64      87,994          38297, 19704, 112390
+11  device_ip            int64      462,510         636062, 320882, 339352
+12  device_model         int64      5,816           638056, 639524, 639186
+13  device_type          int64      5               641988, 641992, 641991
+14  device_conn_type     int64      4               641993, 641994, 641995
+15  C14                  int64      2,398           644069, 644373, 644293
+16  C15                  int64      8               644419, 644417, 644420
+17  C16                  int64      9               644425, 644429, 644428
+18  C17                  int64      425             644610, 644644, 644479
+19  C18                  int64      4               644858, 644859, 644857
+20  C19                  int64      66              644906, 644909, 644908
+21  C20                  int64      166             644974, 644993, 644960
+22  C21                  int64      60              645096, 645103, 645094
+23  mday                 int64      10              645156, 645162, 645161
+24  hour                 int64      24              645185, 645182, 645178
+25  wday                 int64      7               645191, 645190, 645189
+
+✓ Label column: 'click'
+  CTR: 0.1696 (848,061 clicks / 5,000,000 samples)
+
+✓ Temporal features found: ['mday', 'hour', 'wday']
+  - mday: 10 unique values
+    Sample: [645156 645162 645161 645158 645160 645159 645157 645154 645163 645155]
+  - hour: 24 unique values
+    Sample: [645185 645182 645178 645173 645187 645174 645168 645177 645171 645186]
+  - wday: 7 unique values
+    Sample: [645191 645190 645189 645193 645188 645194 645192]
+
+────────────────────────────────────────────────────────────────────────────────
+SPECIAL ANALYSIS: Temporal Feature Pattern Confirmation
+────────────────────────────────────────────────────────────────────────────────
+
+✓ Avazu_x2 Temporal Analysis:
+
+  Hour field:
+    Raw format: 645185 (should be YYMMDDHH)
+    Unique raw values: 24
+      ❌ Could not convert hour field
+
+  Wday field (weekday):
+    Unique values: [np.int64(645188), np.int64(645189), np.int64(645190), np.int64(645191), np.int64(645192), np.int64(645193), np.int64(645194)]
+    Min: 645188, Max: 645194
+    ⚠️  Unexpected range for weekday
+
+  Mday field (day of month):
+    Unique values: [np.int64(645154), np.int64(645155), np.int64(645156), np.int64(645157), np.int64(645158), np.int64(645159), np.int64(645160), np.int64(645161), np.int64(645162), np.int64(645163)]
+    Min: 645154, Max: 645163
+
+════════════════════════════════════════════════════════════════════════════════
+Dataset: Avazu_x4
+Path: data/Avazu/avazu_x4_3bbbc4c9
+════════════════════════════════════════════════════════════════════════════════
+✓ Found: train.csv
+Reading first 2,000,000 rows...
+
+Dataset size: 5000000 rows, 24 columns
+
+────────────────────────────────────────────────────────────────────────────────
+COLUMN DETAILS (with unique value counts)
+────────────────────────────────────────────────────────────────────────────────
+#   Column Name          Type       Unique Values   Sample Values
+────────────────────────────────────────────────────────────────────────────────
+1   id                   uint64     5,000,000       10002028568167339219, 10004181428767727519, 10004574413841529209
+2   click                int64      2               0, 1
+3   hour                 int64      240             14102100, 14102101, 14102102
+4   C1                   int64      7               1005, 1002, 1010
+5   banner_pos           int64      7               0, 1, 4
+6   site_id              object     3,569           9e8cf15d, 0c2fe9d6, 1fbe01fe
+7   site_domain          object     4,466           0d3cb7be, 27e3c518, f3845767
+8   site_category        object     24              f028772b, 28905ebd, 50e219e0
+9   app_id               object     5,260           ecad2386, 54c5d545, 1779deee
+10  app_domain           object     339             7801e8d9, 2347f47a, 0654b444
+11  app_category         object     29              07d7df22, 0f2161f8, f95efa07
+12  device_id            object     598,933         a99f214a, 9af87478, 767a174e
+13  device_ip            object     1,887,967       58811cdf, b7a69808, 1b6530bc
+14  device_model         object     6,586           8326c04b, 158e4944, 1aa0e912
+15  device_type          int64      4               1, 0, 4
+16  device_conn_type     int64      4               2, 0, 3
+17  C14                  int64      2,460           20596, 6558, 15706
+18  C15                  int64      8               320, 300, 216
+19  C16                  int64      9               50, 250, 36
+20  C17                  int64      429             2161, 571, 1722
+21  C18                  int64      4               0, 2, 3
+22  C19                  int64      67              35, 39, 297
+23  C20                  int64      166             100148, -1, 100111
+24  C21                  int64      60              157, 32, 79
+
+✓ Label column: 'click'
+  CTR: 0.1689 (844,629 clicks / 5,000,000 samples)
+
+✓ Temporal features found: ['hour']
+  - hour: 240 unique values
+    Sample: [14102100 14102101 14102102 14102103 14102104 14102105 14102106 14102107
+ 14102108 14102109]
+
+────────────────────────────────────────────────────────────────────────────────
+SPECIAL ANALYSIS: Temporal Feature Pattern Confirmation
+────────────────────────────────────────────────────────────────────────────────
+
+✓ Avazu_x4 Temporal Analysis:
+
+  Hour field:
+    Raw format: 14102100
+    Unique values: 240
+
+
+════════════════════════════════════════════════════════════════════════════════
+UNIQUE VALUE COUNT COMPARISON (for mapping)
+════════════════════════════════════════════════════════════════════════════════
+
+This helps identify which columns correspond across versions.
+Columns with similar unique counts likely represent the same feature.
+
+Column               Avazu_x1        Avazu_x2        Avazu_x4        
+─────────────────────────────────────────────────────────────────
+C1                   —               7               7               
+C14                  —               2,398           2,460           
+C15                  —               8               8               
+C16                  —               9               9               
+C17                  —               425             429             
+C18                  —               4               4               
+C19                  —               66              67              
+C20                  —               166             166             
+C21                  —               60              60              
+app_category         —               28              29              
+app_domain           —               244             339             
+app_id               —               3,820           5,260           
+banner_pos           —               7               7               
+click                —               2               2               
+device_conn_type     —               4               4               
+device_id            —               87,994          598,933         
+device_ip            —               462,510         1,887,967       
+device_model         —               5,816           6,586           
+device_type          —               5               4               
+feat_1               7               —               —               
+feat_10              402,314         —               —               
+feat_11              5,830           —               —               
+feat_12              4               —               —               
+feat_13              4               —               —               
+feat_14              787             —               —               
+feat_15              8               —               —               
+feat_16              9               —               —               
+feat_17              194             —               —               
+feat_18              4               —               —               
+feat_19              45              —               —               
+feat_2               7               —               —               
+feat_20              168             —               —               
+feat_21              38              —               —               
+feat_22              24              —               —               
+feat_3               2,850           —               —               
+feat_4               3,215           —               —               
+feat_5               22              —               —               
+feat_6               3,623           —               —               
+feat_7               242             —               —               
+feat_8               29              —               —               
+feat_9               77,696          —               —               
+hour                 —               24              240             
+id                   —               —               5,000,000       
+label                2               —               —               
+mday                 —               10              —               
+site_category        —               23              24              
+site_domain          —               3,335           4,466           
+site_id              —               3,055           3,569           
+wday                 —               7               —               
+
+
+════════════════════════════════════════════════════════════════════════════════
+NORMALIZATION MAPPING GUIDANCE
+════════════════════════════════════════════════════════════════════════════════
+
+To create normalized datasets WITH temporal features:
+
+1. **Identify corresponding columns** using the unique value counts above
+   - Columns with similar unique counts likely map to each other
+   - Example: If x2's 'C1' and x4's 'C1' both have ~7 unique values, they match
+
+2. **Include temporal features** (IMPORTANT for good AUC!):
+   - 'hour' field (contains timestamp YYMMDDHH)
+   - Derived features: 'weekday', 'weekend' (if present)
+   - Or: 'mday', 'wday' (alternative temporal features)
+
+3. **Create unified schema** with format:
+   label, feat_1, feat_2, ..., feat_N, hour, weekday, weekend
+
+4. **Update normalize_avazu_datasets.py** with mappings based on above table
+
+5. **Update configs** to include preprocessing for temporal features:
+   - hour: preprocess with 'convert_hour'
+   - weekday: preprocess with 'convert_weekday'
+   - weekend: preprocess with 'convert_weekend'
+
+Example mapping (you need to verify with unique counts):
+
+
+AVAZU_X2_MAPPING = {
+    'click': 'label',
+    'C1': 'feat_1',
+    'banner_pos': 'feat_2',
+    'site_id': 'feat_3',
+    ...
+    'C21': 'feat_21',
+    'hour': 'hour',              # KEEP temporal!
+    'mday': 'weekday',           # Or use 'weekday' if it exists
+    'wday': 'weekend',           # Or use 'weekend' if it exists
+}
+
+
+================================================================================
+✅ INSPECTION COMPLETE
+================================================================================
+
+Next steps:
+1. Review the unique value counts above
+2. Create column mappings manually
+3. Update normalize_avazu_datasets.py
+4. Run normalization
+5. Update configs with temporal feature preprocessing

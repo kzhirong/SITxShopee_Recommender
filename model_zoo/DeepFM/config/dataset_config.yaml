@@ -57,9 +57,52 @@ avazu_x4_normalized:
             feat_10, feat_11, feat_12, feat_13, feat_14, feat_15, feat_16, feat_17,
             feat_18, feat_19, feat_20, feat_21]
         type: categorical
+    - {active: true, dtype: str, name: hour, preprocess: convert_hour, type: categorical}
+    - {active: true, dtype: str, name: weekday, preprocess: convert_weekday, type: categorical}
+    - {active: true, dtype: str, name: weekend, preprocess: convert_weekend, type: categorical}
     label_col: {dtype: float, name: label}
     min_categr_count: 2
     rebuild_dataset: true
     test_data: ../../data/Avazu/avazu_x4_normalized/test.csv
     train_data: ../../data/Avazu/avazu_x4_normalized/train.csv
     valid_data: ../../data/Avazu/avazu_x4_normalized/valid.csv
+
+avazu_x1_normalized:
+    data_format: csv
+    data_root: ../../data/Avazu/
+    feature_cols:
+    -   active: true
+        dtype: str
+        name: [feat_1, feat_2, feat_3, feat_4, feat_5, feat_6, feat_7, feat_8, feat_9,
+            feat_10, feat_11, feat_12, feat_13, feat_14, feat_15, feat_16, feat_17,
+            feat_18, feat_19, feat_20, feat_21]
+        type: categorical
+    - {active: true, dtype: str, name: hour, preprocess: convert_hour, type: categorical}
+    - {active: true, dtype: str, name: weekday, preprocess: convert_weekday, type: categorical}
+    - {active: true, dtype: str, name: weekend, preprocess: convert_weekend, type: categorical}
+    label_col: {dtype: float, name: label}
+    min_categr_count: 2
+    rebuild_dataset: true
+    test_data: ../../data/Avazu/avazu_x1_normalized/test.csv
+    train_data: ../../data/Avazu/avazu_x1_normalized/train.csv
+    valid_data: ../../data/Avazu/avazu_x1_normalized/valid.csv
+
+avazu_x2_normalized:
+    data_format: csv
+    data_root: ../../data/Avazu/
+    feature_cols:
+    -   active: true
+        dtype: str
+        name: [feat_1, feat_2, feat_3, feat_4, feat_5, feat_6, feat_7, feat_8, feat_9,
+            feat_10, feat_11, feat_12, feat_13, feat_14, feat_15, feat_16, feat_17,
+            feat_18, feat_19, feat_20, feat_21]
+        type: categorical
+    - {active: true, dtype: str, name: hour, preprocess: convert_hour, type: categorical}
+    - {active: true, dtype: str, name: weekday, preprocess: convert_weekday, type: categorical}
+    - {active: true, dtype: str, name: weekend, preprocess: convert_weekend, type: categorical}
+    label_col: {dtype: float, name: label}
+    min_categr_count: 2
+    rebuild_dataset: true
+    test_data: ../../data/Avazu/avazu_x2_normalized/test.csv
+    train_data: ../../data/Avazu/avazu_x2_normalized/train.csv
+    valid_data: ../../data/Avazu/avazu_x2_normalized/valid.csv
