@@ -2,22 +2,18 @@
 """
 LLM-CTR Training Pipeline for Avazu Dataset
 
-This script implements two-phase training with sequential multi-dataset support:
-- Phase 1: Train projector only (frozen encoder) on x1 → x2
-- Phase 2: Fine-tune encoder + projector on x1 → x2
-- Evaluation: Test on x4
+This script implements two-phase training:
+- Phase 1: Train projector only (frozen encoder)
+- Phase 2: Fine-tune encoder + projector
 
 Uses LLM token prediction for "0" and "1" tokens instead of a separate prediction head.
 
 Usage:
-    # Phase 1: Train projector only on x1 and x2 sequentially
+    # Phase 1: Train projector only
     python train_llm_ctr.py --phase 1 --datasets x1 x2 --epochs 5 --batch_size 32
 
-    # Phase 2: Fine-tune encoder + projector on x1 and x2 sequentially
-    python train_llm_ctr.py --phase 2 --datasets x1 x2 --epochs 3 --batch_size 32 --checkpoint checkpoints/llm_ctr_phase1/best_model.pt
-
-    # Evaluate on x4
-    python train_llm_ctr.py --phase 1 --datasets x4 --epochs 0 --eval_only --checkpoint checkpoints/llm_ctr_phase2/best_model.pt
+    # Phase 2: Fine-tune encoder + projector
+    python train_llm_ctr.py --phase 2 --datasets x1 x2 --epochs 3 --batch_size 32
 """
 
 import sys
@@ -51,11 +47,6 @@ class LLM_CTR_Model(nn.Module):
 
     Architecture:
         Feature IDs → Embeddings → Encoder → Projector → [Text + Features] → LLM → Token Logits
-
-    Training:
-        - Phase 1: Freeze encoder, train projector only
-        - Phase 2: Unfreeze encoder, train encoder + projector
-        - Embeddings and LLM are always frozen
     """
 
     def __init__(self, embedding_layer, encoder, projector, llm, tokenizer, freeze_encoder=True):
@@ -66,7 +57,7 @@ class LLM_CTR_Model(nn.Module):
         self.llm = llm
         self.tokenizer = tokenizer
 
-        # Freeze encoder if specified (Phase 1)
+        # Freeze encoder if specified
         if freeze_encoder:
             for param in self.encoder.parameters():
                 param.requires_grad = False
@@ -160,21 +151,21 @@ def prepare_prompt_embeddings(tokenizer, llm, prompt_template, batch_size, devic
     return prompt_embeds
 
 
-def train_epoch(model, dataloader, optimizer, device, feature_names, prompt_template, epoch, phase, dataset_name):
-    """Train for one epoch on a single dataset."""
+def train_epoch(model, dataloader, optimizer, device, feature_names, prompt_template, epoch, phase):
+    """Train for one epoch."""
     model.train()
     total_loss = 0
     correct = 0
     total = 0
 
-    pbar = tqdm(dataloader, desc=f"Phase {phase} [{dataset_name}] - Epoch {epoch}")
+    pbar = tqdm(dataloader, desc=f"Phase {phase} - Epoch {epoch}")
 
     for batch_idx, batch in enumerate(pbar):
         optimizer.zero_grad()
 
         # Move batch to device
         batch_dict = {feat: batch[feat].to(device) for feat in feature_names}
-        labels = batch['label'].long().squeeze().to(device)  # [batch_size]
+        labels = batch['click'].long().squeeze().to(device)  # [batch_size]
 
         # Prepare prompt embeddings for this batch
         batch_size = labels.shape[0]
@@ -210,7 +201,7 @@ def train_epoch(model, dataloader, optimizer, device, feature_names, prompt_temp
     return avg_loss, accuracy
 
 
-def evaluate(model, dataloader, device, feature_names, prompt_template, phase, dataset_name):
+def evaluate(model, dataloader, device, feature_names, prompt_template, phase):
     """Evaluate on validation/test set."""
     model.eval()
     total_loss = 0
@@ -218,12 +209,12 @@ def evaluate(model, dataloader, device, feature_names, prompt_template, phase, d
     total = 0
 
     with torch.no_grad():
-        pbar = tqdm(dataloader, desc=f"Phase {phase} [{dataset_name}] - Evaluating")
+        pbar = tqdm(dataloader, desc=f"Phase {phase} - Evaluating")
 
         for batch in pbar:
             # Move batch to device
             batch_dict = {feat: batch[feat].to(device) for feat in feature_names}
-            labels = batch['label'].long().squeeze().to(device)
+            labels = batch['click'].long().squeeze().to(device)
 
             # Prepare prompt embeddings
             batch_size = labels.shape[0]
@@ -257,18 +248,16 @@ def main():
     parser.add_argument('--phase', type=int, required=True, choices=[1, 2],
                        help='Training phase: 1 (projector only) or 2 (encoder + projector)')
     parser.add_argument('--datasets', nargs='+', default=['x1', 'x2'],
-                       help='Dataset versions to use (e.g., x1 x2). Sequential training.')
+                       help='Dataset versions to use (e.g., x1 x2)')
     parser.add_argument('--epochs', type=int, default=5,
-                       help='Number of training epochs PER DATASET')
+                       help='Number of training epochs')
     parser.add_argument('--batch_size', type=int, default=32,
                        help='Batch size')
     parser.add_argument('--lr', type=float, default=1e-4,
                        help='Learning rate')
-    parser.add_argument('--baseline_checkpoint', type=str,
-                       default='model_zoo/DeepFM/Avazu/DeepFM_avazu_normalized/DeepFM_avazu_normalized.model',
-                       help='Path pattern for baseline DeepFM checkpoint')
-    parser.add_argument('--checkpoint', type=str, default=None,
-                       help='Path to LLM-CTR checkpoint to resume from (for Phase 2)')
+    parser.add_argument('--checkpoint', type=str,
+                       default='model_zoo/DeepFM/Avazu/DeepFM_avazu_normalized/avazu_x4_normalized_*/DeepFM_avazu_normalized.model',
+                       help='Path pattern for baseline checkpoint')
     parser.add_argument('--gpu', type=int, default=0,
                        help='GPU device ID (-1 for CPU)')
 
@@ -287,8 +276,8 @@ def main():
     print("=" * 80)
     print(f"\nConfiguration:")
     print(f"  Phase: {args.phase} ({'Projector only' if args.phase == 1 else 'Encoder + Projector'})")
-    print(f"  Datasets: {' → '.join(args.datasets)} (sequential training)")
-    print(f"  Epochs per dataset: {args.epochs}")
+    print(f"  Datasets: {', '.join(args.datasets)}")
+    print(f"  Epochs: {args.epochs}")
     print(f"  Batch size: {args.batch_size}")
     print(f"  Learning rate: {args.lr}")
     print(f"  Device: {device}")
@@ -307,33 +296,10 @@ def main():
         if key in params and params[key]:
             params[key] = params[key].replace('../../', '')
 
-    # Load feature map (use x4 as reference for model architecture)
-    # First ensure dataset is preprocessed (like run_expid.py does)
-    data_dir = os.path.join(params['data_root'], 'avazu_x4_normalized')
-    feature_map_json = os.path.join(data_dir, "feature_map.json")
-
-    # Build dataset if feature_map doesn't exist (like run_expid.py)
-    if not os.path.exists(feature_map_json) and params.get("data_format") == "csv":
-        print(f"  Preprocessing x4 dataset (building feature_map and H5 files)...")
-        from fuxictr.preprocess import FeatureProcessor, build_dataset
-        # Temporarily set dataset_id for preprocessing
-        original_dataset_id = params.get('dataset_id')
-        params['dataset_id'] = 'avazu_x4_normalized'
-        feature_encoder = FeatureProcessor(**params)
-        params["train_data"], params["valid_data"], params["test_data"] = \
-            build_dataset(feature_encoder, **params)
-        # Restore original dataset_id
-        params['dataset_id'] = original_dataset_id
-        print(f"  ✓ Dataset preprocessed")
-    elif os.path.exists(feature_map_json):
-        # If feature_map exists, parquet files should exist too
-        # Update data paths to point to parquet files
-        params['train_data'] = os.path.join(data_dir, 'train.parquet')
-        params['valid_data'] = os.path.join(data_dir, 'valid.parquet')
-        params['test_data'] = os.path.join(data_dir, 'test.parquet')
-
     # Load feature map
-    feature_map = FeatureMap('avazu_x4_normalized', data_dir)
+    data_dir = os.path.join(params['data_root'], params['dataset_id'])
+    feature_map_json = os.path.join(data_dir, "feature_map.json")
+    feature_map = FeatureMap(params['dataset_id'], data_dir)
     feature_map.load(feature_map_json, params)
 
     print(f"  Features: {len(feature_map.features)}")
@@ -345,14 +311,14 @@ def main():
     model_class = getattr(src, params['model'])
     deepfm_model = model_class(feature_map, **params)
 
-    # Find and load baseline checkpoint
+    # Find and load checkpoint
     import glob
-    checkpoint_files = glob.glob(args.baseline_checkpoint)
+    checkpoint_files = glob.glob(args.checkpoint)
     if not checkpoint_files:
-        raise FileNotFoundError(f"No baseline checkpoint found matching: {args.baseline_checkpoint}")
+        raise FileNotFoundError(f"No checkpoint found matching: {args.checkpoint}")
     checkpoint_path = checkpoint_files[0]
 
-    print(f"  Loading baseline checkpoint: {checkpoint_path}")
+    print(f"  Loading checkpoint: {checkpoint_path}")
     deepfm_model.load_weights(checkpoint_path)
     deepfm_model.eval()
 
@@ -368,13 +334,17 @@ def main():
     print("STEP 2: Loading LLM (Qwen3-0.6B)")
     print("-" * 80)
 
-    from transformers import AutoModelForCausalLM
-    llm = AutoModelForCausalLM.from_pretrained("Qwen/Qwen3-0.6B").to(device)
+    llm = AutoModel.from_pretrained("Qwen/Qwen3-0.6B").to(device)
     tokenizer = AutoTokenizer.from_pretrained("Qwen/Qwen3-0.6B")
+
+    # Ensure LLM has lm_head
+    if not hasattr(llm, 'lm_head'):
+        # Load the full language model instead
+        from transformers import AutoModelForCausalLM
+        llm = AutoModelForCausalLM.from_pretrained("Qwen/Qwen3-0.6B").to(device)
 
     print(f"  ✓ LLM loaded")
     print(f"  ✓ Tokenizer loaded")
-    print(f"  LLM hidden size: {llm.config.hidden_size}")
 
     # Create projector
     print("\n" + "-" * 80)
@@ -400,13 +370,6 @@ def main():
         freeze_encoder=freeze_encoder
     ).to(device)
 
-    # Load checkpoint if resuming (Phase 2)
-    if args.checkpoint:
-        print(f"\n  Loading LLM-CTR checkpoint: {args.checkpoint}")
-        checkpoint = torch.load(args.checkpoint, map_location=device)
-        model.load_state_dict(checkpoint['model_state_dict'])
-        print(f"  ✓ Loaded checkpoint from epoch {checkpoint['epoch']}")
-
     # Count trainable parameters
     total_params = sum(p.numel() for p in model.parameters())
     trainable_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
@@ -420,153 +383,83 @@ def main():
         lr=args.lr
     )
 
-    # Define prompt template (Option A - Detailed)
-    prompt_template = "Based on the user's browsing behavior and ad interaction features, predict if they will click on this advertisement. Answer with 1 for click or 0 for no click:"
+    # Define prompt template
+    prompt_template = "Based on the following user features, predict if the user will click on this ad. Answer with 1 for click or 0 for no click:"
 
     print(f"\n  Prompt: '{prompt_template}'")
 
     # Load training data
     print("\n" + "-" * 80)
-    print("STEP 4: Loading training data (Sequential Multi-Dataset)")
+    print("STEP 4: Loading training data")
     print("-" * 80)
 
-    # Sequential multi-dataset training
-    # We'll train on x1, then x2, sequentially
-    dataset_configs = {
-        'x1': 'avazu_x1_normalized',
-        'x2': 'avazu_x2_normalized',
-        'x4': 'avazu_x4_normalized'
-    }
+    # TODO: For now, use x4 as placeholder. Need to implement multi-dataset loading
+    # In the actual implementation, we'd load x1 and x2 and combine them
 
-    # Prepare dataloaders for each requested dataset
-    dataloaders = {}
-    for dataset_name in args.datasets:
-        if dataset_name not in dataset_configs:
-            raise ValueError(f"Unknown dataset: {dataset_name}. Valid: {list(dataset_configs.keys())}")
+    params['num_workers'] = 0
+    params['batch_size'] = args.batch_size
 
-        dataset_id = dataset_configs[dataset_name]
-        print(f"\n  Loading dataset: {dataset_name} ({dataset_id})")
+    train_gen, valid_gen = RankDataLoader(feature_map, stage='train', **params).make_iterator()
 
-        # Load config for this specific dataset
-        # Use the base config and override dataset_id
-        dataset_params = load_config(config_path, experiment_id)
-        dataset_params['dataset_id'] = dataset_id
-
-        # Fix paths
-        for key in ['data_root', 'test_data', 'train_data', 'valid_data']:
-            if key in dataset_params and dataset_params[key]:
-                dataset_params[key] = dataset_params[key].replace('../../', '')
-
-        # Load feature map for this dataset
-        data_dir = os.path.join(dataset_params['data_root'], dataset_id)
-        feature_map_json = os.path.join(data_dir, "feature_map.json")
-
-        # Build dataset if feature_map doesn't exist (like run_expid.py)
-        if not os.path.exists(feature_map_json) and dataset_params.get("data_format") == "csv":
-            print(f"    Preprocessing {dataset_name} (building feature_map and H5 files)...")
-            from fuxictr.preprocess import FeatureProcessor, build_dataset
-            feature_encoder = FeatureProcessor(**dataset_params)
-            dataset_params["train_data"], dataset_params["valid_data"], dataset_params["test_data"] = \
-                build_dataset(feature_encoder, **dataset_params)
-            print(f"    ✓ Dataset preprocessed")
-        elif os.path.exists(feature_map_json):
-            # If feature_map exists, parquet files should exist too
-            # Update data paths to point to parquet files
-            dataset_params['train_data'] = os.path.join(data_dir, 'train.parquet')
-            dataset_params['valid_data'] = os.path.join(data_dir, 'valid.parquet')
-            dataset_params['test_data'] = os.path.join(data_dir, 'test.parquet')
-
-        # Load feature map
-        dataset_feature_map = FeatureMap(dataset_id, data_dir)
-        dataset_feature_map.load(feature_map_json, dataset_params)
-
-        # Create dataloader
-        dataset_params['num_workers'] = 0
-        dataset_params['batch_size'] = args.batch_size
-
-        train_gen, valid_gen = RankDataLoader(dataset_feature_map, stage='train', **dataset_params).make_iterator()
-
-        dataloaders[dataset_name] = {
-            'train': train_gen,
-            'valid': valid_gen,
-            'feature_map': dataset_feature_map
-        }
-
-        print(f"    ✓ Train batches: ~{len(train_gen)}")
-        print(f"    ✓ Valid batches: ~{len(valid_gen)}")
-
-    # Get feature names (use normalized names - all datasets have same schema)
+    # Get feature names (use normalized names)
     feature_names = [f'feat_{i}' for i in range(1, 22)]  # 21 features
 
-    print(f"\n  Total datasets for training: {len(args.datasets)}")
-    print(f"  Feature names: feat_1 to feat_21 (21 features)")
+    print(f"  Training batches: ~{len(train_gen)}")
+    print(f"  Validation batches: ~{len(valid_gen)}")
 
-    # Training loop - SEQUENTIAL MULTI-DATASET
+    # Training loop
     print("\n" + "-" * 80)
-    print(f"STEP 5: Training Phase {args.phase} (Sequential Multi-Dataset)")
+    print(f"STEP 5: Training Phase {args.phase}")
     print("-" * 80)
 
     best_val_acc = 0.0
     results = []
 
-    # Train on each dataset sequentially
-    for dataset_name in args.datasets:
-        print(f"\n{'=' * 80}")
-        print(f"TRAINING ON DATASET: {dataset_name.upper()}")
-        print(f"{'=' * 80}")
+    for epoch in range(1, args.epochs + 1):
+        print(f"\nEpoch {epoch}/{args.epochs}")
 
-        train_loader = dataloaders[dataset_name]['train']
-        valid_loader = dataloaders[dataset_name]['valid']
+        # Train
+        train_loss, train_acc = train_epoch(
+            model, train_gen, optimizer, device, feature_names, prompt_template, epoch, args.phase
+        )
 
-        for epoch in range(1, args.epochs + 1):
-            print(f"\nDataset: {dataset_name} | Epoch {epoch}/{args.epochs}")
+        # Validate
+        val_loss, val_acc = evaluate(
+            model, valid_gen, device, feature_names, prompt_template, args.phase
+        )
 
-            # Train
-            train_loss, train_acc = train_epoch(
-                model, train_loader, optimizer, device, feature_names,
-                prompt_template, epoch, args.phase, dataset_name
-            )
+        print(f"\nEpoch {epoch} Summary:")
+        print(f"  Train Loss: {train_loss:.4f} | Train Acc: {train_acc:.2f}%")
+        print(f"  Val Loss:   {val_loss:.4f} | Val Acc:   {val_acc:.2f}%")
 
-            # Validate
-            val_loss, val_acc = evaluate(
-                model, valid_loader, device, feature_names,
-                prompt_template, args.phase, dataset_name
-            )
+        # Save results
+        results.append({
+            'epoch': epoch,
+            'train_loss': train_loss,
+            'train_acc': train_acc,
+            'val_loss': val_loss,
+            'val_acc': val_acc
+        })
 
-            print(f"\nDataset: {dataset_name} | Epoch {epoch} Summary:")
-            print(f"  Train Loss: {train_loss:.4f} | Train Acc: {train_acc:.2f}%")
-            print(f"  Val Loss:   {val_loss:.4f} | Val Acc:   {val_acc:.2f}%")
+        # Save best model
+        if val_acc > best_val_acc:
+            best_val_acc = val_acc
+            save_dir = Path(f'checkpoints/llm_ctr_phase{args.phase}')
+            save_dir.mkdir(parents=True, exist_ok=True)
 
-            # Save results
-            results.append({
-                'dataset': dataset_name,
+            checkpoint = {
                 'epoch': epoch,
-                'train_loss': train_loss,
-                'train_acc': train_acc,
+                'model_state_dict': model.state_dict(),
+                'optimizer_state_dict': optimizer.state_dict(),
+                'val_acc': val_acc,
                 'val_loss': val_loss,
-                'val_acc': val_acc
-            })
+                'args': vars(args),
+                'prompt_template': prompt_template
+            }
 
-            # Save best model
-            if val_acc > best_val_acc:
-                best_val_acc = val_acc
-                save_dir = Path(f'checkpoints/llm_ctr_phase{args.phase}')
-                save_dir.mkdir(parents=True, exist_ok=True)
-
-                checkpoint = {
-                    'dataset': dataset_name,
-                    'epoch': epoch,
-                    'model_state_dict': model.state_dict(),
-                    'optimizer_state_dict': optimizer.state_dict(),
-                    'val_acc': val_acc,
-                    'val_loss': val_loss,
-                    'args': vars(args),
-                    'prompt_template': prompt_template
-                }
-
-                save_path = save_dir / 'best_model.pt'
-                torch.save(checkpoint, save_path)
-                print(f"  ✓ Saved best model to {save_path}")
+            save_path = save_dir / 'best_model.pt'
+            torch.save(checkpoint, save_path)
+            print(f"  ✓ Saved best model to {save_path}")
 
     # Save training results
     results_file = Path(f'checkpoints/llm_ctr_phase{args.phase}/training_results.json')
@@ -581,7 +474,7 @@ def main():
 
     if args.phase == 1:
         print("\nNext step: Run Phase 2 to fine-tune encoder + projector")
-        print(f"  python train_llm_ctr.py --phase 2 --datasets x1 x2 --epochs 3 --checkpoint checkpoints/llm_ctr_phase1/best_model.pt")
+        print(f"  python train_llm_ctr.py --phase 2 --datasets x1 x2 --epochs 3")
 
 
 if __name__ == "__main__":
