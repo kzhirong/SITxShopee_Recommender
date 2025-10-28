@@ -336,7 +336,8 @@ def main():
     src = importlib.import_module(model_src_path)
     model_class = getattr(src, params['model'])
 
-    # Use x1's parquet files for analyzer (they should exist after tarball extraction)
+    # Use x1_normalized parquet files for analyzer (they should exist after tarball extraction)
+    # NOTE: We use normalized (not sample20) because sample20 parquet may not exist yet
     model_params = params.copy()
     model_params['train_data'] = 'data/Avazu/avazu_x1_normalized/train.parquet'
     model_params['valid_data'] = 'data/Avazu/avazu_x1_normalized/valid.parquet'
@@ -432,9 +433,6 @@ def main():
     # Sequential multi-dataset training
     # We'll train on x1, then x2, sequentially
     dataset_configs = {
-        'x1': 'avazu_x1_normalized',
-        'x2': 'avazu_x2_normalized',
-        'x4': 'avazu_x4_normalized',
         'x1_sample20': 'avazu_x1_sample20',  # 20% sample for faster development
         'x2_sample20': 'avazu_x2_sample20'   # 20% sample for faster development
     }
@@ -448,10 +446,17 @@ def main():
         dataset_id = dataset_configs[dataset_name]
         print(f"\n  Loading dataset: {dataset_name} ({dataset_id})")
 
-        # Load config for this specific dataset
-        # Use the base config and override dataset_id
-        dataset_params = load_config(config_path, experiment_id)
+        # Load base config from experiment_id, but override with dataset-specific params
+        from fuxictr.utils import load_dataset_config
+        dataset_params = params.copy()  # Start with base params
+
+        # CRITICAL: Override dataset_id FIRST before loading dataset config
+        # The base params has dataset_id='avazu_x4_normalized' which causes wrong data to be loaded!
         dataset_params['dataset_id'] = dataset_id
+
+        # Load dataset-specific config (CSV paths, etc.)
+        dataset_specific = load_dataset_config(config_path, dataset_id)
+        dataset_params.update(dataset_specific)  # Override with dataset-specific paths
 
         # Fix paths
         for key in ['data_root', 'test_data', 'train_data', 'valid_data']:
@@ -462,20 +467,78 @@ def main():
         data_dir = os.path.join(dataset_params['data_root'], dataset_id)
         feature_map_json = os.path.join(data_dir, "feature_map.json")
 
+        # DEBUG: Print what paths we're using
+        print(f"    DEBUG: data_dir = {data_dir}")
+        print(f"    DEBUG: dataset_params['train_data'] = {dataset_params.get('train_data')}")
+        print(f"    DEBUG: dataset_params['valid_data'] = {dataset_params.get('valid_data')}")
+        print(f"    DEBUG: dataset_params['test_data'] = {dataset_params.get('test_data')}")
+
         # Build dataset if feature_map doesn't exist (like run_expid.py)
         if not os.path.exists(feature_map_json) and dataset_params.get("data_format") == "csv":
             print(f"    Preprocessing {dataset_name} (building feature_map and H5 files)...")
             from fuxictr.preprocess import FeatureProcessor, build_dataset
+
+            # Get original CSV row counts for validation
+            import pandas as pd
+            csv_train_path = dataset_params['train_data']
+            print(f"    Counting rows in source CSV: {csv_train_path}")
+            csv_row_count = sum(1 for _ in open(csv_train_path)) - 1  # -1 for header
+            print(f"    Source CSV rows: {csv_row_count:,}")
+
             feature_encoder = FeatureProcessor(**dataset_params)
             dataset_params["train_data"], dataset_params["valid_data"], dataset_params["test_data"] = \
                 build_dataset(feature_encoder, **dataset_params)
             print(f"    ✓ Dataset preprocessed")
+
+            # CRITICAL: Validate parquet file has correct number of rows
+            print(f"    Validating preprocessed parquet file...")
+            parquet_train_path = dataset_params["train_data"]
+            if os.path.exists(parquet_train_path):
+                df_validate = pd.read_parquet(parquet_train_path)
+                parquet_row_count = len(df_validate)
+                print(f"    Parquet file rows: {parquet_row_count:,}")
+
+                # Check if row counts match (allow small difference for header/format)
+                row_diff = abs(parquet_row_count - csv_row_count)
+                if row_diff > 100:  # Allow up to 100 rows difference for edge cases
+                    print(f"\n{'=' * 80}")
+                    print(f"❌ VALIDATION FAILED - WRONG DATA PREPROCESSED!")
+                    print(f"{'=' * 80}")
+                    print(f"Dataset: {dataset_name}")
+                    print(f"Expected rows (from CSV): {csv_row_count:,}")
+                    print(f"Actual rows (in parquet): {parquet_row_count:,}")
+                    print(f"Difference: {row_diff:,} rows")
+                    print(f"\nThis means FuxiCTR processed the WRONG source data!")
+                    print(f"Check dataset_params['dataset_id'] = {dataset_params.get('dataset_id')}")
+                    print(f"\nDeleting incorrect parquet files...")
+
+                    # Clean up incorrect files
+                    for split in ['train', 'valid', 'test']:
+                        bad_file = os.path.join(data_dir, f'{split}.parquet')
+                        if os.path.exists(bad_file):
+                            os.remove(bad_file)
+                            print(f"  Deleted: {bad_file}")
+                    if os.path.exists(feature_map_json):
+                        os.remove(feature_map_json)
+                        print(f"  Deleted: {feature_map_json}")
+
+                    raise RuntimeError(f"Preprocessing validation failed for {dataset_name}. "
+                                     f"Parquet has {parquet_row_count:,} rows but CSV has {csv_row_count:,} rows. "
+                                     f"Incorrect files have been deleted. Please fix the dataset_id override bug.")
+                else:
+                    print(f"    ✅ Validation passed! Row counts match (diff: {row_diff})")
+            else:
+                raise FileNotFoundError(f"Parquet file not created: {parquet_train_path}")
         elif os.path.exists(feature_map_json):
             # If feature_map exists, parquet files should exist too
             # Update data paths to point to parquet files
             dataset_params['train_data'] = os.path.join(data_dir, 'train.parquet')
             dataset_params['valid_data'] = os.path.join(data_dir, 'valid.parquet')
             dataset_params['test_data'] = os.path.join(data_dir, 'test.parquet')
+            print(f"    DEBUG: Updated to parquet paths:")
+            print(f"    DEBUG:   train_data = {dataset_params['train_data']}")
+            print(f"    DEBUG:   valid_data = {dataset_params['valid_data']}")
+            print(f"    DEBUG:   test_data = {dataset_params['test_data']}")
 
         # Load feature map
         dataset_feature_map = FeatureMap(dataset_id, data_dir)
@@ -484,6 +547,16 @@ def main():
         # Create dataloader
         dataset_params['num_workers'] = 0
         dataset_params['batch_size'] = args.batch_size
+
+        # DEBUG: Check actual parquet file row count BEFORE creating dataloader
+        import pandas as pd
+        if os.path.exists(dataset_params['train_data']):
+            df_check = pd.read_parquet(dataset_params['train_data'])
+            print(f"    DEBUG: Actual parquet file contents:")
+            print(f"    DEBUG:   File: {dataset_params['train_data']}")
+            print(f"    DEBUG:   Actual rows in parquet: {len(df_check):,}")
+            print(f"    DEBUG:   Expected rows for {dataset_name}: ~5,660,000 (x1_sample20) or ~6,468,000 (x2_sample20)")
+            print(f"    DEBUG:   Expected batches: {len(df_check) // args.batch_size:,}")
 
         train_gen, valid_gen = RankDataLoader(dataset_feature_map, stage='train', **dataset_params).make_iterator()
 

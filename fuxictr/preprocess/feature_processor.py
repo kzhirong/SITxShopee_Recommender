@@ -96,18 +96,41 @@ class FeatureProcessor(object):
 
     def convert_weekday(self, col_name=None):
         def _convert_weekday(timestamp):
-            dt = date(int('20' + timestamp[0:2]), int(timestamp[2:4]), int(timestamp[4:6]))
+            # Handle both 6-digit (YYDDHH) and 8-digit (YYMMDDHH) formats
+            # x2 dataset: 142321 = 14 (year) + 23 (day) + 21 (hour) = Oct 23, 2014, 21:00
+            # x1/x4 datasets: 14102321 = 14 (year) + 10 (month) + 23 (day) + 21 (hour)
+            timestamp_str = str(timestamp)
+            if len(timestamp_str) == 6:
+                # 6-digit: YYDDHH -> insert "10" (October) after year
+                yy, dd, hh = timestamp_str[0:2], timestamp_str[2:4], timestamp_str[4:6]
+                timestamp_str = yy + '10' + dd + hh  # Now 8-digit: YYMMDDHH
+            dt = date(int('20' + timestamp_str[0:2]), int(timestamp_str[2:4]), int(timestamp_str[4:6]))
             return int(dt.strftime('%w'))
         return pl.col("hour").map_elements(_convert_weekday, return_dtype=int)
 
     def convert_weekend(self, col_name=None):
         def _convert_weekend(timestamp):
-            dt = date(int('20' + timestamp[0:2]), int(timestamp[2:4]), int(timestamp[4:6]))
+            # Handle both 6-digit (YYDDHH) and 8-digit (YYMMDDHH) formats
+            timestamp_str = str(timestamp)
+            if len(timestamp_str) == 6:
+                # 6-digit: YYDDHH -> insert "10" (October) after year
+                yy, dd, hh = timestamp_str[0:2], timestamp_str[2:4], timestamp_str[4:6]
+                timestamp_str = yy + '10' + dd + hh  # Now 8-digit: YYMMDDHH
+            dt = date(int('20' + timestamp_str[0:2]), int(timestamp_str[2:4]), int(timestamp_str[4:6]))
             return 1 if dt.strftime('%w') in ['6', '0'] else 0
         return pl.col("hour").map_elements(_convert_weekend, return_dtype=int)
 
     def convert_hour(self, col_name=None):
-        return pl.col("hour").map_elements(lambda x: int(x[6:8]), return_dtype=int)
+        def _convert_hour(timestamp):
+            # Handle both 6-digit (YYDDHH) and 8-digit (YYMMDDHH) formats
+            timestamp_str = str(timestamp)
+            if len(timestamp_str) == 6:
+                # 6-digit: YYDDHH -> hour is last 2 digits
+                return int(timestamp_str[4:6])
+            else:
+                # 8-digit: YYMMDDHH -> hour is last 2 digits
+                return int(timestamp_str[6:8])
+        return pl.col("hour").map_elements(_convert_hour, return_dtype=int)
 
     def extract_country_code(self, col_name):
         return pl.col(col_name).map_elements(lambda isrc: isrc[0:2] if isrc is not None else "", return_dtype=str)
