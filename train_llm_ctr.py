@@ -159,7 +159,7 @@ def prepare_prompt_embeddings(tokenizer, llm, prompt_template, batch_size, devic
     return prompt_embeds
 
 
-def train_epoch(model, dataloader, optimizer, device, feature_names, prompt_template, epoch, phase, dataset_name):
+def train_epoch(model, dataloader, optimizer, device, feature_names, prompt_embeds_cache, epoch, phase, dataset_name):
     """Train for one epoch on a single dataset."""
     model.train()
     total_loss = 0
@@ -175,11 +175,9 @@ def train_epoch(model, dataloader, optimizer, device, feature_names, prompt_temp
         batch_dict = {feat: batch[feat].to(device) for feat in feature_names}
         labels = batch['label'].long().squeeze().to(device)  # [batch_size]
 
-        # Prepare prompt embeddings for this batch
+        # Get cached prompt embeddings (or slice if batch size differs)
         batch_size = labels.shape[0]
-        prompt_embeds = prepare_prompt_embeddings(
-            model.tokenizer, model.llm, prompt_template, batch_size, device
-        )
+        prompt_embeds = prompt_embeds_cache[:batch_size]
 
         # Forward pass
         logits = model(batch_dict, prompt_embeds)  # [batch_size, 2]
@@ -209,7 +207,7 @@ def train_epoch(model, dataloader, optimizer, device, feature_names, prompt_temp
     return avg_loss, accuracy
 
 
-def evaluate(model, dataloader, device, feature_names, prompt_template, phase, dataset_name):
+def evaluate(model, dataloader, device, feature_names, prompt_embeds_cache, phase, dataset_name):
     """Evaluate on validation/test set."""
     model.eval()
     total_loss = 0
@@ -224,11 +222,9 @@ def evaluate(model, dataloader, device, feature_names, prompt_template, phase, d
             batch_dict = {feat: batch[feat].to(device) for feat in feature_names}
             labels = batch['label'].long().squeeze().to(device)
 
-            # Prepare prompt embeddings
+            # Get cached prompt embeddings
             batch_size = labels.shape[0]
-            prompt_embeds = prepare_prompt_embeddings(
-                model.tokenizer, model.llm, prompt_template, batch_size, device
-            )
+            prompt_embeds = prompt_embeds_cache[:batch_size]
 
             # Forward pass
             logits = model(batch_dict, prompt_embeds)
@@ -545,7 +541,7 @@ def main():
         dataset_feature_map.load(feature_map_json, dataset_params)
 
         # Create dataloader
-        dataset_params['num_workers'] = 0
+        dataset_params['num_workers'] = 4
         dataset_params['batch_size'] = args.batch_size
 
         # DEBUG: Check actual parquet file row count BEFORE creating dataloader
@@ -581,6 +577,13 @@ def main():
     print(f"STEP 5: Training Phase {args.phase} (Sequential Multi-Dataset)")
     print("-" * 80)
 
+    # Pre-compute prompt embeddings ONCE (huge performance boost!)
+    print("\n  Pre-computing prompt embeddings...")
+    prompt_embeds_cache = prepare_prompt_embeddings(
+        tokenizer, llm, prompt_template, args.batch_size, device
+    )
+    print(f"  ✓ Prompt embeddings cached: {prompt_embeds_cache.shape}")
+
     best_val_acc = 0.0
     results = []
 
@@ -599,13 +602,13 @@ def main():
             # Train
             train_loss, train_acc = train_epoch(
                 model, train_loader, optimizer, device, feature_names,
-                prompt_template, epoch, args.phase, dataset_name
+                prompt_embeds_cache, epoch, args.phase, dataset_name
             )
 
             # Validate
             val_loss, val_acc = evaluate(
                 model, valid_loader, device, feature_names,
-                prompt_template, args.phase, dataset_name
+                prompt_embeds_cache, args.phase, dataset_name
             )
 
             print(f"\nDataset: {dataset_name} | Epoch {epoch} Summary:")
