@@ -117,9 +117,8 @@ class LLM_CTR_Model(nn.Module):
         llm_output = self.llm(inputs_embeds=inputs_embeds, return_dict=True)
 
         # 6. Get logits for next token prediction at the last position
-        # LLM models typically have a language modeling head
-        # We'll use the last hidden state and project to vocabulary
-        lm_logits = self.llm.lm_head(llm_output.last_hidden_state)  # [batch_size, seq_len, vocab_size]
+        # AutoModelForCausalLM returns logits directly
+        lm_logits = llm_output.logits  # [batch_size, seq_len, vocab_size]
 
         # Get logits at the last position (after all inputs)
         last_token_logits = lm_logits[:, -1, :]  # [batch_size, vocab_size]
@@ -307,43 +306,43 @@ def main():
         if key in params and params[key]:
             params[key] = params[key].replace('../../', '')
 
-    # Load feature map (use x4 as reference for model architecture)
-    # First ensure dataset is preprocessed (like run_expid.py does)
-    data_dir = os.path.join(params['data_root'], 'avazu_x4_normalized')
-    feature_map_json = os.path.join(data_dir, "feature_map.json")
+    # Load unified feature map for multi-dataset training
+    # This feature map has maximum vocab sizes across x1, x2, x4
+    unified_data_dir = os.path.join(params['data_root'], 'avazu_unified')
+    unified_feature_map_json = os.path.join(unified_data_dir, "feature_map.json")
 
-    # Build dataset if feature_map doesn't exist (like run_expid.py)
-    if not os.path.exists(feature_map_json) and params.get("data_format") == "csv":
-        print(f"  Preprocessing x4 dataset (building feature_map and H5 files)...")
-        from fuxictr.preprocess import FeatureProcessor, build_dataset
-        # Temporarily set dataset_id for preprocessing
-        original_dataset_id = params.get('dataset_id')
-        params['dataset_id'] = 'avazu_x4_normalized'
-        feature_encoder = FeatureProcessor(**params)
-        params["train_data"], params["valid_data"], params["test_data"] = \
-            build_dataset(feature_encoder, **params)
-        # Restore original dataset_id
-        params['dataset_id'] = original_dataset_id
-        print(f"  ✓ Dataset preprocessed")
-    elif os.path.exists(feature_map_json):
-        # If feature_map exists, parquet files should exist too
-        # Update data paths to point to parquet files
-        params['train_data'] = os.path.join(data_dir, 'train.parquet')
-        params['valid_data'] = os.path.join(data_dir, 'valid.parquet')
-        params['test_data'] = os.path.join(data_dir, 'test.parquet')
+    # Create unified feature map if it doesn't exist
+    if not os.path.exists(unified_feature_map_json):
+        print(f"  Creating unified feature map...")
+        import subprocess
+        result = subprocess.run(['python', 'create_unified_feature_map.py'],
+                              capture_output=True, text=True)
+        print(result.stdout)
+        if result.returncode != 0:
+            print(result.stderr)
+            raise RuntimeError("Failed to create unified feature map")
 
-    # Load feature map
-    feature_map = FeatureMap('avazu_x4_normalized', data_dir)
-    feature_map.load(feature_map_json, params)
+    # Load unified feature map
+    feature_map = FeatureMap('avazu_unified', unified_data_dir)
+    feature_map.load(unified_feature_map_json, params)
 
     print(f"  Features: {len(feature_map.features)}")
     print(f"  Embedding dim: {params['embedding_dim']}")
 
-    # Load full DeepFM model
+    # Initialize DeepFM model to extract embedding layer and encoder
+    # The model's init_analyzer requires real data paths, so we point to x1's parquet files
+    # (The analyzer only needs to read some data; which dataset doesn't matter)
     model_src_path = "model_zoo.DeepFM.src"
     src = importlib.import_module(model_src_path)
     model_class = getattr(src, params['model'])
-    deepfm_model = model_class(feature_map, **params)
+
+    # Use x1's parquet files for analyzer (they should exist after tarball extraction)
+    model_params = params.copy()
+    model_params['train_data'] = 'data/Avazu/avazu_x1_normalized/train.parquet'
+    model_params['valid_data'] = 'data/Avazu/avazu_x1_normalized/valid.parquet'
+    model_params['test_data'] = 'data/Avazu/avazu_x1_normalized/test.parquet'
+
+    deepfm_model = model_class(feature_map, **model_params)
 
     # Find and load baseline checkpoint
     import glob
@@ -435,7 +434,9 @@ def main():
     dataset_configs = {
         'x1': 'avazu_x1_normalized',
         'x2': 'avazu_x2_normalized',
-        'x4': 'avazu_x4_normalized'
+        'x4': 'avazu_x4_normalized',
+        'x1_sample20': 'avazu_x1_sample20',  # 20% sample for faster development
+        'x2_sample20': 'avazu_x2_sample20'   # 20% sample for faster development
     }
 
     # Prepare dataloaders for each requested dataset
@@ -496,10 +497,11 @@ def main():
         print(f"    ✓ Valid batches: ~{len(valid_gen)}")
 
     # Get feature names (use normalized names - all datasets have same schema)
-    feature_names = [f'feat_{i}' for i in range(1, 22)]  # 21 features
+    # Include all features: feat_1 to feat_21, hour, weekday, weekend
+    feature_names = [f'feat_{i}' for i in range(1, 22)] + ['hour', 'weekday', 'weekend']  # 24 features
 
     print(f"\n  Total datasets for training: {len(args.datasets)}")
-    print(f"  Feature names: feat_1 to feat_21 (21 features)")
+    print(f"  Feature names: feat_1 to feat_21 + hour, weekday, weekend (24 features)")
 
     # Training loop - SEQUENTIAL MULTI-DATASET
     print("\n" + "-" * 80)
