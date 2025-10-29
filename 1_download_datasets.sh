@@ -41,7 +41,7 @@ else
     wget https://huggingface.co/datasets/reczoo/Avazu_x1/resolve/main/Avazu_x1.zip -O Avazu_x1.zip
 
     echo "Extracting..."
-    unzip -o Avazu_x1.zip -d data/Avazu/
+    unzip -o Avazu_x1.zip -d data/Avazu/Avazu_x1/
 
     echo "Cleaning up..."
     rm Avazu_x1.zip
@@ -66,7 +66,7 @@ else
     wget https://huggingface.co/datasets/reczoo/Avazu_x2/resolve/main/Avazu_x2.zip -O Avazu_x2.zip
 
     echo "Extracting..."
-    unzip -o Avazu_x2.zip -d data/Avazu/
+    unzip -o Avazu_x2.zip -d data/Avazu/Avazu_x2/
 
     echo "Cleaning up..."
     rm Avazu_x2.zip
@@ -86,12 +86,12 @@ echo "=========================================="
 if [ -f "data/Avazu/avazu_x4_3bbbc4c9/train.csv" ]; then
     echo "✓ Avazu_x4 already exists, skipping"
 else
-    mkdir -p data/Avazu/
+    mkdir -p data/Avazu/avazu_x4_3bbbc4c9/
     echo "Downloading from HuggingFace..."
     wget https://huggingface.co/datasets/reczoo/Avazu_x4/resolve/main/Avazu_x4.zip -O Avazu_x4.zip
 
     echo "Extracting..."
-    unzip -o Avazu_x4.zip -d data/Avazu/
+    unzip -o Avazu_x4.zip -d data/Avazu/avazu_x4_3bbbc4c9/
 
     echo "Cleaning up..."
     rm Avazu_x4.zip
