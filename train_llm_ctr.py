@@ -10,14 +10,11 @@ This script implements two-phase training with sequential multi-dataset support:
 Uses LLM token prediction for "0" and "1" tokens instead of a separate prediction head.
 
 Usage:
-    # Phase 1: Train projector only on x1 and x2 sequentially
-    python train_llm_ctr.py --phase 1 --datasets x1 x2 --epochs 5 --batch_size 32
+    # Phase 1: Train projector only on x1_sample20 and x2_sample20 sequentially
+    python train_llm_ctr.py --phase 1 --datasets x1_sample20 x2_sample20 --epochs 5 --batch_size 128
 
-    # Phase 2: Fine-tune encoder + projector on x1 and x2 sequentially
-    python train_llm_ctr.py --phase 2 --datasets x1 x2 --epochs 3 --batch_size 32 --checkpoint checkpoints/llm_ctr_phase1/best_model.pt
-
-    # Evaluate on x4
-    python train_llm_ctr.py --phase 1 --datasets x4 --epochs 0 --eval_only --checkpoint checkpoints/llm_ctr_phase2/best_model.pt
+    # Phase 2: Fine-tune encoder + projector on x1_sample20 and x2_sample20 sequentially
+    python train_llm_ctr.py --phase 2 --datasets x1_sample20 x2_sample20 --epochs 3 --batch_size 128 --checkpoint checkpoints/llm_ctr_phase1/best_model.pt
 """
 
 import sys
@@ -260,7 +257,7 @@ def main():
     parser.add_argument('--lr', type=float, default=1e-4,
                        help='Learning rate')
     parser.add_argument('--baseline_checkpoint', type=str,
-                       default='model_zoo/DeepFM/Avazu/DeepFM_avazu_normalized/DeepFM_avazu_normalized.model',
+                       default='model_zoo/DeepFM/Avazu/DeepFM_avazu_normalized/avazu_x4_normalized/DeepFM_avazu_normalized.model',
                        help='Path pattern for baseline DeepFM checkpoint')
     parser.add_argument('--checkpoint', type=str, default=None,
                        help='Path to LLM-CTR checkpoint to resume from (for Phase 2)')
@@ -326,18 +323,52 @@ def main():
     print(f"  Embedding dim: {params['embedding_dim']}")
 
     # Initialize DeepFM model to extract embedding layer and encoder
-    # The model's init_analyzer requires real data paths, so we point to x1's parquet files
+    # The model's init_analyzer requires real data paths, so we use x4_normalized parquet files
     # (The analyzer only needs to read some data; which dataset doesn't matter)
     model_src_path = "model_zoo.DeepFM.src"
     src = importlib.import_module(model_src_path)
     model_class = getattr(src, params['model'])
 
-    # Use x1_normalized parquet files for analyzer (they should exist after tarball extraction)
-    # NOTE: We use normalized (not sample20) because sample20 parquet may not exist yet
+    # Use x4_normalized parquet files for analyzer initialization
+    # If parquet files don't exist, create them first
     model_params = params.copy()
-    model_params['train_data'] = 'data/Avazu/avazu_x1_normalized/train.parquet'
-    model_params['valid_data'] = 'data/Avazu/avazu_x1_normalized/valid.parquet'
-    model_params['test_data'] = 'data/Avazu/avazu_x1_normalized/test.parquet'
+    x4_data_dir = os.path.join(params['data_root'], 'avazu_x4_normalized')
+    x4_feature_map_json = os.path.join(x4_data_dir, "feature_map.json")
+
+    model_params['train_data'] = os.path.join(x4_data_dir, 'train.parquet')
+    model_params['valid_data'] = os.path.join(x4_data_dir, 'valid.parquet')
+    model_params['test_data'] = os.path.join(x4_data_dir, 'test.parquet')
+
+    # Create x4_normalized parquet files if they don't exist
+    if not os.path.exists(x4_feature_map_json):
+        print(f"  x4_normalized parquet files not found. Creating them...")
+        from fuxictr.utils import load_dataset_config
+        from fuxictr.preprocess import FeatureProcessor, build_dataset
+
+        x4_params = params.copy()
+        x4_params['dataset_id'] = 'avazu_x4_normalized'
+        x4_specific = load_dataset_config(config_path, 'avazu_x4_normalized')
+        x4_params.update(x4_specific)
+
+        # Fix paths
+        for key in ['data_root', 'test_data', 'train_data', 'valid_data']:
+            if key in x4_params and x4_params[key]:
+                x4_params[key] = x4_params[key].replace('../../', '')
+
+        print(f"    Processing x4_normalized CSVs...")
+        feature_encoder = FeatureProcessor(**x4_params)
+        x4_params["train_data"], x4_params["valid_data"], x4_params["test_data"] = \
+            build_dataset(feature_encoder, **x4_params)
+
+        model_params['train_data'] = x4_params["train_data"]
+        model_params['valid_data'] = x4_params["valid_data"]
+        model_params['test_data'] = x4_params["test_data"]
+
+        print(f"    ✓ x4_normalized parquet files created")
+
+    print(f"  Using parquet files for analyzer:")
+    print(f"    Train: {model_params['train_data']}")
+    print(f"    Valid: {model_params['valid_data']}")
 
     deepfm_model = model_class(feature_map, **model_params)
 
@@ -463,12 +494,6 @@ def main():
         data_dir = os.path.join(dataset_params['data_root'], dataset_id)
         feature_map_json = os.path.join(data_dir, "feature_map.json")
 
-        # DEBUG: Print what paths we're using
-        print(f"    DEBUG: data_dir = {data_dir}")
-        print(f"    DEBUG: dataset_params['train_data'] = {dataset_params.get('train_data')}")
-        print(f"    DEBUG: dataset_params['valid_data'] = {dataset_params.get('valid_data')}")
-        print(f"    DEBUG: dataset_params['test_data'] = {dataset_params.get('test_data')}")
-
         # Build dataset if feature_map doesn't exist (like run_expid.py)
         if not os.path.exists(feature_map_json) and dataset_params.get("data_format") == "csv":
             print(f"    Preprocessing {dataset_name} (building feature_map and H5 files)...")
@@ -531,28 +556,14 @@ def main():
             dataset_params['train_data'] = os.path.join(data_dir, 'train.parquet')
             dataset_params['valid_data'] = os.path.join(data_dir, 'valid.parquet')
             dataset_params['test_data'] = os.path.join(data_dir, 'test.parquet')
-            print(f"    DEBUG: Updated to parquet paths:")
-            print(f"    DEBUG:   train_data = {dataset_params['train_data']}")
-            print(f"    DEBUG:   valid_data = {dataset_params['valid_data']}")
-            print(f"    DEBUG:   test_data = {dataset_params['test_data']}")
 
         # Load feature map
         dataset_feature_map = FeatureMap(dataset_id, data_dir)
         dataset_feature_map.load(feature_map_json, dataset_params)
 
         # Create dataloader
-        dataset_params['num_workers'] = 4
+        dataset_params['num_workers'] = 0  # Use main process for Colab compatibility
         dataset_params['batch_size'] = args.batch_size
-
-        # DEBUG: Check actual parquet file row count BEFORE creating dataloader
-        import pandas as pd
-        if os.path.exists(dataset_params['train_data']):
-            df_check = pd.read_parquet(dataset_params['train_data'])
-            print(f"    DEBUG: Actual parquet file contents:")
-            print(f"    DEBUG:   File: {dataset_params['train_data']}")
-            print(f"    DEBUG:   Actual rows in parquet: {len(df_check):,}")
-            print(f"    DEBUG:   Expected rows for {dataset_name}: ~5,660,000 (x1_sample20) or ~6,468,000 (x2_sample20)")
-            print(f"    DEBUG:   Expected batches: {len(df_check) // args.batch_size:,}")
 
         train_gen, valid_gen = RankDataLoader(dataset_feature_map, stage='train', **dataset_params).make_iterator()
 
@@ -639,7 +650,9 @@ def main():
                     'val_acc': val_acc,
                     'val_loss': val_loss,
                     'args': vars(args),
-                    'prompt_template': prompt_template
+                    'prompt_template': prompt_template,
+                    'feature_names': feature_names,
+                    'unified_feature_map_path': 'model_zoo/DeepFM/Avazu/unified_feature_map.json'
                 }
 
                 save_path = save_dir / 'best_model.pt'
@@ -659,7 +672,8 @@ def main():
 
     if args.phase == 1:
         print("\nNext step: Run Phase 2 to fine-tune encoder + projector")
-        print(f"  python train_llm_ctr.py --phase 2 --datasets x1 x2 --epochs 3 --checkpoint checkpoints/llm_ctr_phase1/best_model.pt")
+        datasets_str = ' '.join(args.datasets)
+        print(f"  python train_llm_ctr.py --phase 2 --datasets {datasets_str} --epochs 3 --checkpoint checkpoints/llm_ctr_phase1/best_model.pt")
 
 
 if __name__ == "__main__":
