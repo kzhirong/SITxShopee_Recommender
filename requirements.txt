@@ -11,6 +11,7 @@ polars
 
 # For LLM integration (Phase 2)
 transformers>=4.30.0
+flash-attn>=2.0.0  # For FlashAttention 2 (A100+ only)
 
 # Visualization and utilities
 matplotlib

@@ -104,6 +104,9 @@ class LLM_CTR_Model(nn.Module):
         else:
             encoded = encoder_output
 
+        # Convert to bfloat16 to match LLM dtype (encoder outputs float32)
+        encoded = encoded.to(torch.bfloat16)
+
         # 3. Encoded → Projector
         projected = self.projector(encoded)  # [batch_size, num_fields, llm_dim]
 
@@ -166,7 +169,7 @@ def train_epoch(model, dataloader, optimizer, device, feature_names, prompt_embe
     pbar = tqdm(dataloader, desc=f"Phase {phase} [{dataset_name}] - Epoch {epoch}")
 
     for batch_idx, batch in enumerate(pbar):
-        optimizer.zero_grad()
+        optimizer.zero_grad(set_to_none=True)
 
         # Move batch to device
         batch_dict = {feat: batch[feat].to(device) for feat in feature_names}
@@ -257,7 +260,7 @@ def main():
     parser.add_argument('--lr', type=float, default=1e-4,
                        help='Learning rate')
     parser.add_argument('--baseline_checkpoint', type=str,
-                       default='model_zoo/DeepFM/Avazu/DeepFM_avazu_normalized/avazu_x4_normalized/DeepFM_avazu_normalized.model',
+                       default='model_zoo/DeepFM/Avazu/DeepFM_avazu_normalized/DeepFM_avazu_normalized.model',
                        help='Path pattern for baseline DeepFM checkpoint')
     parser.add_argument('--checkpoint', type=str, default=None,
                        help='Path to LLM-CTR checkpoint to resume from (for Phase 2)')
@@ -269,6 +272,10 @@ def main():
     # Setup device
     if args.gpu >= 0 and torch.cuda.is_available():
         device = torch.device(f'cuda:{args.gpu}')
+        # Enable TF32 for faster matmul on Ampere GPUs (A100, A6000, etc.)
+        torch.backends.cuda.matmul.allow_tf32 = True
+        torch.backends.cudnn.allow_tf32 = True
+        torch.set_float32_matmul_precision("high")
     elif torch.backends.mps.is_available():
         device = torch.device('mps')
     else:
@@ -396,10 +403,14 @@ def main():
     print("-" * 80)
 
     from transformers import AutoModelForCausalLM
-    llm = AutoModelForCausalLM.from_pretrained("Qwen/Qwen3-0.6B").to(device)
+    llm = AutoModelForCausalLM.from_pretrained(
+        "Qwen/Qwen3-0.6B",
+        torch_dtype=torch.bfloat16,  # Use bfloat16 for A100 (2x memory reduction)
+        attn_implementation="flash_attention_2"  # Use FlashAttention 2 for faster attention
+    ).to(device)
     tokenizer = AutoTokenizer.from_pretrained("Qwen/Qwen3-0.6B")
 
-    print(f"  ✓ LLM loaded")
+    print(f"  ✓ LLM loaded (bfloat16 + FlashAttention2)")
     print(f"  ✓ Tokenizer loaded")
     print(f"  LLM hidden size: {llm.config.hidden_size}")
 
@@ -412,9 +423,9 @@ def main():
         feature_dim=params['embedding_dim'],
         llm_dim=llm.config.hidden_size,
         hidden_dim=512
-    ).to(device)
+    ).to(device).to(torch.bfloat16)  # Match LLM dtype
 
-    print(f"  Projector: {params['embedding_dim']}D → {llm.config.hidden_size}D")
+    print(f"  Projector: {params['embedding_dim']}D → {llm.config.hidden_size}D (bfloat16)")
 
     # Create LLM-CTR model
     freeze_encoder = (args.phase == 1)
@@ -464,8 +475,10 @@ def main():
         'x2_sample20': 'avazu_x2_sample20'   # 20% sample for faster development
     }
 
-    # Prepare dataloaders for each requested dataset
-    dataloaders = {}
+    # PHASE 1: Preprocess all datasets first (create parquet files)
+    print("\n  Phase 1: Preprocessing datasets (creating parquet files if needed)...")
+    dataset_params_dict = {}  # Store params for each dataset
+
     for dataset_name in args.datasets:
         if dataset_name not in dataset_configs:
             raise ValueError(f"Unknown dataset: {dataset_name}. Valid: {list(dataset_configs.keys())}")
@@ -556,6 +569,38 @@ def main():
             dataset_params['train_data'] = os.path.join(data_dir, 'train.parquet')
             dataset_params['valid_data'] = os.path.join(data_dir, 'valid.parquet')
             dataset_params['test_data'] = os.path.join(data_dir, 'test.parquet')
+        else:
+            # Feature map doesn't exist and either not CSV format or preprocessing was skipped
+            raise FileNotFoundError(
+                f"Feature map not found for {dataset_name}: {feature_map_json}\n"
+                f"Please ensure the dataset has been preprocessed. Check:\n"
+                f"  1. CSV files exist at: {dataset_params.get('train_data')}\n"
+                f"  2. data_format is 'csv': {dataset_params.get('data_format')}\n"
+                f"  3. Run preprocessing manually if needed"
+            )
+
+        # Store params for Phase 2 (dataloader creation)
+        dataset_params_dict[dataset_name] = {
+            'dataset_id': dataset_id,
+            'dataset_params': dataset_params,
+            'data_dir': data_dir,
+            'feature_map_json': feature_map_json
+        }
+
+        print(f"    ✓ {dataset_name} ready for loading")
+
+    # PHASE 2: Load dataloaders for all preprocessed datasets
+    print("\n  Phase 2: Creating dataloaders for all datasets...")
+    dataloaders = {}
+
+    for dataset_name in args.datasets:
+        stored = dataset_params_dict[dataset_name]
+        dataset_id = stored['dataset_id']
+        dataset_params = stored['dataset_params']
+        data_dir = stored['data_dir']
+        feature_map_json = stored['feature_map_json']
+
+        print(f"\n  Loading dataloader: {dataset_name} ({dataset_id})")
 
         # Load feature map
         dataset_feature_map = FeatureMap(dataset_id, data_dir)
