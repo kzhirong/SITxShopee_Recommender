@@ -117,8 +117,12 @@ def prepare_prompt_embeddings(tokenizer, llm, prompt_template, batch_size, devic
     return prompt_embeds
 
 
-def evaluate_testset(model, dataloader, device, feature_names, prompt_embeds_cache, dataset_name):
-    """Evaluate on test set and calculate AUC + Accuracy."""
+def evaluate_testset(model, dataloader, device, feature_names, prompt_embeds_cache, dataset_name, return_raw=False):
+    """Evaluate on test set and calculate AUC + Accuracy.
+
+    Args:
+        return_raw: If True, return raw predictions instead of computing metrics
+    """
     model.eval()
 
     all_labels = []
@@ -146,9 +150,9 @@ def evaluate_testset(model, dataloader, device, feature_names, prompt_embeds_cac
             probs = F.softmax(logits, dim=1)[:, 1]  # Probability of class 1 (click)
             preds = logits.argmax(dim=1)
 
-            # Collect results
+            # Collect results (convert bfloat16 to float32 first for NumPy compatibility)
             all_labels.extend(labels.cpu().numpy())
-            all_probs.extend(probs.cpu().numpy())
+            all_probs.extend(probs.float().cpu().numpy())
             all_preds.extend(preds.cpu().numpy())
             total_loss += loss.item()
 
@@ -159,6 +163,16 @@ def evaluate_testset(model, dataloader, device, feature_names, prompt_embeds_cac
     all_labels = np.array(all_labels)
     all_probs = np.array(all_probs)
     all_preds = np.array(all_preds)
+
+    # If return_raw, just return the raw data for combining later
+    if return_raw:
+        return {
+            'labels': all_labels,
+            'probs': all_probs,
+            'preds': all_preds,
+            'total_loss': total_loss,
+            'num_batches': len(dataloader)
+        }
 
     # Calculate metrics
     auc = roc_auc_score(all_labels, all_probs)
@@ -180,7 +194,7 @@ def main():
     parser.add_argument('--checkpoint', type=str, required=True,
                        help='Path to model checkpoint (e.g., checkpoints/llm_ctr_phase2/best_model.pt)')
     parser.add_argument('--dataset', type=str, default='x4',
-                       help='Dataset to evaluate on (e.g., x4, x1_sample20, x2_sample20)')
+                       help='Dataset to evaluate on. Use "all" for x1+x2+x4 combined, or specify: x1, x2, x4, x1_sample20, x2_sample20')
     parser.add_argument('--split', type=str, default='test', choices=['test', 'valid'],
                        help='Which split to evaluate on')
     parser.add_argument('--batch_size', type=int, default=128,
@@ -189,6 +203,14 @@ def main():
                        help='GPU device ID (-1 for CPU)')
 
     args = parser.parse_args()
+
+    # Handle "all" dataset option - evaluate on x1, x2, x4 combined
+    if args.dataset == 'all':
+        datasets_to_eval = ['x1', 'x2', 'x4']
+        eval_combined = True
+    else:
+        datasets_to_eval = [args.dataset]
+        eval_combined = False
 
     # Setup device
     if args.gpu >= 0 and torch.cuda.is_available():
@@ -207,7 +229,7 @@ def main():
     print("=" * 80)
     print(f"\nConfiguration:")
     print(f"  Checkpoint: {args.checkpoint}")
-    print(f"  Dataset: {args.dataset}")
+    print(f"  Dataset: {args.dataset}{' (x1 + x2 + x4 combined)' if eval_combined else ''}")
     print(f"  Split: {args.split}")
     print(f"  Batch size: {args.batch_size}")
     print(f"  Device: {device}")
@@ -318,11 +340,6 @@ def main():
     model.eval()
     print(f"  ✓ Model weights loaded")
 
-    # Load test dataset
-    print("\n" + "-" * 80)
-    print(f"Loading {args.dataset} {args.split} dataset")
-    print("-" * 80)
-
     # Map dataset names to dataset_ids
     dataset_configs = {
         'x1': 'avazu_x1_normalized',
@@ -332,68 +349,137 @@ def main():
         'x2_sample20': 'avazu_x2_sample20'
     }
 
-    if args.dataset not in dataset_configs:
-        raise ValueError(f"Unknown dataset: {args.dataset}. Valid: {list(dataset_configs.keys())}")
+    # Collect results from all datasets
+    all_labels_combined = []
+    all_probs_combined = []
+    all_preds_combined = []
+    total_loss_combined = 0
+    total_batches = 0
+    per_dataset_results = {}
 
-    dataset_id = dataset_configs[args.dataset]
-    dataset_params = params.copy()
-    dataset_params['dataset_id'] = dataset_id
+    # Evaluate each dataset
+    for dataset_name in datasets_to_eval:
+        print("\n" + "-" * 80)
+        print(f"Loading {dataset_name} {args.split} dataset")
+        print("-" * 80)
 
-    # Load dataset-specific config
-    dataset_specific = load_dataset_config(config_path, dataset_id)
-    dataset_params.update(dataset_specific)
+        if dataset_name not in dataset_configs:
+            raise ValueError(f"Unknown dataset: {dataset_name}. Valid: {list(dataset_configs.keys())}")
 
-    # Fix paths
-    for key in ['data_root', 'test_data', 'train_data', 'valid_data']:
-        if key in dataset_params and dataset_params[key]:
-            dataset_params[key] = dataset_params[key].replace('../../', '')
+        dataset_id = dataset_configs[dataset_name]
+        dataset_params = params.copy()
+        dataset_params['dataset_id'] = dataset_id
 
-    # Load feature map
-    data_dir = os.path.join(dataset_params['data_root'], dataset_id)
-    feature_map_json = os.path.join(data_dir, "feature_map.json")
+        # Load dataset-specific config
+        dataset_specific = load_dataset_config(config_path, dataset_id)
+        dataset_params.update(dataset_specific)
 
-    if not os.path.exists(feature_map_json):
-        raise FileNotFoundError(f"Feature map not found: {feature_map_json}\n"
-                              f"Please preprocess {args.dataset} first.")
+        # Fix paths
+        for key in ['data_root', 'test_data', 'train_data', 'valid_data']:
+            if key in dataset_params and dataset_params[key]:
+                dataset_params[key] = dataset_params[key].replace('../../', '')
 
-    dataset_feature_map = FeatureMap(dataset_id, data_dir)
-    dataset_feature_map.load(feature_map_json, dataset_params)
+        # Load feature map
+        data_dir = os.path.join(dataset_params['data_root'], dataset_id)
+        feature_map_json = os.path.join(data_dir, "feature_map.json")
 
-    # Create dataloader
-    dataset_params['num_workers'] = 0
-    dataset_params['batch_size'] = args.batch_size
+        if not os.path.exists(feature_map_json):
+            raise FileNotFoundError(f"Feature map not found: {feature_map_json}\n"
+                                  f"Please preprocess {dataset_name} first.")
 
-    # Load the requested split
-    if args.split == 'test':
-        dataloader = RankDataLoader(dataset_feature_map, stage='test', **dataset_params).make_iterator()
-    else:  # valid
-        _, dataloader = RankDataLoader(dataset_feature_map, stage='train', **dataset_params).make_iterator()
+        dataset_feature_map = FeatureMap(dataset_id, data_dir)
+        dataset_feature_map.load(feature_map_json, dataset_params)
 
-    print(f"  ✓ Loaded {args.split} dataloader: ~{len(dataloader)} batches")
+        # Update paths to use parquet files instead of CSV
+        dataset_params['train_data'] = os.path.join(data_dir, 'train.parquet')
+        dataset_params['valid_data'] = os.path.join(data_dir, 'valid.parquet')
+        dataset_params['test_data'] = os.path.join(data_dir, 'test.parquet')
+        dataset_params['data_format'] = 'parquet'  # Important: tell it to use parquet
 
-    # Pre-compute prompt embeddings
-    print("\n  Pre-computing prompt embeddings...")
-    prompt_embeds_cache = prepare_prompt_embeddings(
-        tokenizer, llm, prompt_template, args.batch_size, device
-    )
-    print(f"  ✓ Prompt embeddings cached: {prompt_embeds_cache.shape}")
+        # Create dataloader
+        dataset_params['num_workers'] = 0
+        dataset_params['batch_size'] = args.batch_size
 
-    # Evaluate
-    print("\n" + "-" * 80)
-    print(f"Evaluating on {args.dataset} {args.split} set")
-    print("-" * 80)
+        # Load the requested split
+        if args.split == 'test':
+            dataloader = RankDataLoader(dataset_feature_map, stage='test', **dataset_params).make_iterator()
+        else:  # valid
+            _, dataloader = RankDataLoader(dataset_feature_map, stage='train', **dataset_params).make_iterator()
 
-    results = evaluate_testset(
-        model, dataloader, device, feature_names,
-        prompt_embeds_cache, args.dataset
-    )
+        print(f"  ✓ Loaded {args.split} dataloader: ~{len(dataloader)} batches")
+
+        # Pre-compute prompt embeddings
+        print("\n  Pre-computing prompt embeddings...")
+        prompt_embeds_cache = prepare_prompt_embeddings(
+            tokenizer, llm, prompt_template, args.batch_size, device
+        )
+        print(f"  ✓ Prompt embeddings cached: {prompt_embeds_cache.shape}")
+
+        # Evaluate
+        print("\n" + "-" * 80)
+        print(f"Evaluating on {dataset_name} {args.split} set")
+        print("-" * 80)
+
+        # Get raw results if combining, otherwise compute metrics directly
+        raw_results = evaluate_testset(
+            model, dataloader, device, feature_names,
+            prompt_embeds_cache, dataset_name, return_raw=eval_combined
+        )
+
+        if eval_combined:
+            # Accumulate raw results for combined metric calculation
+            all_labels_combined.extend(raw_results['labels'])
+            all_probs_combined.extend(raw_results['probs'])
+            all_preds_combined.extend(raw_results['preds'])
+            total_loss_combined += raw_results['total_loss']
+            total_batches += raw_results['num_batches']
+            per_dataset_results[dataset_name] = {
+                'num_samples': len(raw_results['labels'])
+            }
+            print(f"  ✓ Completed {dataset_name}: {len(raw_results['labels']):,} samples")
+        else:
+            # Single dataset evaluation - use results directly
+            results = raw_results
+
+    # Calculate combined metrics if evaluating multiple datasets
+    if eval_combined:
+        print("\n" + "-" * 80)
+        print("Computing combined metrics across all datasets")
+        print("-" * 80)
+
+        all_labels_combined = np.array(all_labels_combined)
+        all_probs_combined = np.array(all_probs_combined)
+        all_preds_combined = np.array(all_preds_combined)
+
+        # Calculate combined metrics
+        auc = roc_auc_score(all_labels_combined, all_probs_combined)
+        accuracy = (all_preds_combined == all_labels_combined).mean() * 100
+        logloss = log_loss(all_labels_combined, all_probs_combined)
+        avg_loss = total_loss_combined / total_batches
+
+        results = {
+            'auc': auc,
+            'accuracy': accuracy,
+            'logloss': logloss,
+            'loss': avg_loss,
+            'num_samples': len(all_labels_combined),
+            'per_dataset': per_dataset_results
+        }
 
     # Print results
     print("\n" + "=" * 80)
     print("EVALUATION RESULTS")
     print("=" * 80)
-    print(f"\nDataset: {args.dataset} ({args.split} set)")
-    print(f"  Samples: {results['num_samples']:,}")
+
+    if eval_combined:
+        print(f"\nCombined Results (x1 + x2 + x4 {args.split} sets)")
+        print(f"  Total Samples: {results['num_samples']:,}")
+        for ds_name, ds_info in results['per_dataset'].items():
+            print(f"    - {ds_name}: {ds_info['num_samples']:,} samples")
+    else:
+        print(f"\nDataset: {args.dataset} ({args.split} set)")
+        print(f"  Samples: {results['num_samples']:,}")
+
     print(f"\nMetrics:")
     print(f"  AUC:      {results['auc']:.4f}")
     print(f"  Accuracy: {results['accuracy']:.2f}%")

@@ -260,7 +260,7 @@ def main():
     parser.add_argument('--lr', type=float, default=1e-4,
                        help='Learning rate')
     parser.add_argument('--baseline_checkpoint', type=str,
-                       default='model_zoo/DeepFM/Avazu/DeepFM_avazu_normalized/DeepFM_avazu_normalized.model',
+                       default='model_zoo/DeepFM/Avazu/DeepFM_avazu_normalized/avazu_x4_normalized/DeepFM_avazu_normalized.model',
                        help='Path pattern for baseline DeepFM checkpoint')
     parser.add_argument('--checkpoint', type=str, default=None,
                        help='Path to LLM-CTR checkpoint to resume from (for Phase 2)')
