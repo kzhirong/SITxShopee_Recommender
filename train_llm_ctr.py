@@ -402,14 +402,43 @@ def main():
     print("-" * 80)
 
     from transformers import AutoModelForCausalLM
-    llm = AutoModelForCausalLM.from_pretrained(
-        "Qwen/Qwen3-0.6B",
-        torch_dtype=torch.bfloat16,  # Use bfloat16 for A100 (2x memory reduction)
-        attn_implementation="flash_attention_2"  # Use FlashAttention 2 for faster attention
-    ).to(device)
+
+    # Try to use FlashAttention 2 if GPU supports it, fallback to default attention
+    llm_kwargs = {"torch_dtype": torch.bfloat16}
+    use_flash_attn = False
+
+    if device.type == 'cuda':
+        try:
+            import flash_attn  # noqa: F401 - Only checking if available, not using directly
+            llm_kwargs["attn_implementation"] = "flash_attention_2"
+            use_flash_attn = True
+            print("  Attempting to use FlashAttention 2...")
+        except ImportError:
+            print("  FlashAttention 2 not installed, using default attention")
+
+    # Try loading with FlashAttention, fallback if GPU doesn't support it
+    try:
+        llm = AutoModelForCausalLM.from_pretrained(
+            "Qwen/Qwen3-0.6B",
+            **llm_kwargs
+        ).to(device)
+        attention_type = "FlashAttention2" if use_flash_attn else "default"
+    except (RuntimeError, ValueError) as e:
+        if use_flash_attn and "flash" in str(e).lower():
+            print(f"  ⚠ FlashAttention 2 not supported on this GPU")
+            print("  Falling back to default attention...")
+            llm_kwargs.pop("attn_implementation", None)
+            llm = AutoModelForCausalLM.from_pretrained(
+                "Qwen/Qwen3-0.6B",
+                **llm_kwargs
+            ).to(device)
+            attention_type = "default"
+        else:
+            raise
+
     tokenizer = AutoTokenizer.from_pretrained("Qwen/Qwen3-0.6B")
 
-    print(f"  ✓ LLM loaded (bfloat16 + FlashAttention2)")
+    print(f"  ✓ LLM loaded (bfloat16 + {attention_type})")
     print(f"  ✓ Tokenizer loaded")
     print(f"  LLM hidden size: {llm.config.hidden_size}")
 

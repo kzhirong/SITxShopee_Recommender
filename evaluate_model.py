@@ -201,6 +201,10 @@ def main():
                        help='Batch size for evaluation')
     parser.add_argument('--gpu', type=int, default=0,
                        help='GPU device ID (-1 for CPU)')
+    parser.add_argument('--clear-checkpoints', action='store_true',
+                       help='Clear previous evaluation checkpoints and start fresh')
+    parser.add_argument('--checkpoint-dir', type=str, default=None,
+                       help='Directory to save evaluation checkpoints (e.g., /content/drive/MyDrive/eval_checkpoints). If not specified, saves next to model checkpoint.')
 
     args = parser.parse_args()
 
@@ -296,24 +300,44 @@ def main():
     # Load LLM
     print("\n  Loading LLM (Qwen3-0.6B)...")
 
-    # Try to use FlashAttention 2 if available (A100+ only)
+    # Try to use FlashAttention 2 if available and supported by GPU
     # Otherwise fall back to default attention
     llm_kwargs = {"torch_dtype": torch.bfloat16}
+    use_flash_attn = False
 
     if device.type == 'cuda':
         try:
-            import flash_attn
+            import flash_attn  # noqa: F401 - Only checking if available, not using directly
             llm_kwargs["attn_implementation"] = "flash_attention_2"
-            print("  Using FlashAttention 2 (A100 optimization)")
+            use_flash_attn = True
+            print("  Attempting to use FlashAttention 2...")
         except ImportError:
-            print("  FlashAttention 2 not available, using default attention")
+            print("  FlashAttention 2 not installed, using default attention")
     else:
         print(f"  Running on {device}, using default attention")
 
-    llm = AutoModelForCausalLM.from_pretrained(
-        "Qwen/Qwen3-0.6B",
-        **llm_kwargs
-    ).to(device)
+    # Try loading with FlashAttention first, fallback if GPU doesn't support it
+    try:
+        llm = AutoModelForCausalLM.from_pretrained(
+            "Qwen/Qwen3-0.6B",
+            **llm_kwargs
+        ).to(device)
+        if use_flash_attn:
+            print("  ✓ Using FlashAttention 2 (GPU optimization enabled)")
+    except (RuntimeError, ValueError) as e:
+        if use_flash_attn and "flash" in str(e).lower():
+            print(f"  ⚠ FlashAttention 2 not supported on this GPU: {e}")
+            print("  Falling back to default attention...")
+            # Remove FlashAttention and retry
+            llm_kwargs.pop("attn_implementation", None)
+            llm = AutoModelForCausalLM.from_pretrained(
+                "Qwen/Qwen3-0.6B",
+                **llm_kwargs
+            ).to(device)
+            print("  ✓ Using default attention")
+        else:
+            raise  # Re-raise if it's a different error
+
     tokenizer = AutoTokenizer.from_pretrained("Qwen/Qwen3-0.6B")
     print(f"  ✓ LLM loaded")
 
@@ -357,8 +381,68 @@ def main():
     total_batches = 0
     per_dataset_results = {}
 
+    # Setup checkpoint directory for intermediate results
+    if args.checkpoint_dir:
+        # Use custom directory (e.g., Google Drive)
+        eval_checkpoint_dir = Path(args.checkpoint_dir) / f'eval_checkpoints_{args.dataset}_{args.split}'
+        print(f"\n  Using checkpoint directory: {eval_checkpoint_dir}")
+    else:
+        # Default: save next to model checkpoint
+        output_dir = Path(args.checkpoint).parent
+        eval_checkpoint_dir = output_dir / f'eval_checkpoints_{args.dataset}_{args.split}'
+
+    # Clear checkpoints if requested
+    if args.clear_checkpoints and eval_checkpoint_dir.exists():
+        import shutil
+        shutil.rmtree(eval_checkpoint_dir)
+        print(f"\n  ✓ Cleared previous evaluation checkpoints")
+
+    eval_checkpoint_dir.mkdir(parents=True, exist_ok=True)
+    print(f"  Checkpoint directory: {eval_checkpoint_dir}")
+
     # Evaluate each dataset
     for dataset_name in datasets_to_eval:
+        # Check if this dataset was already evaluated (checkpoint exists)
+        dataset_checkpoint_file = eval_checkpoint_dir / f'{dataset_name}_results.json'
+
+        if dataset_checkpoint_file.exists() and eval_combined:
+            # Try to load and validate checkpoint
+            try:
+                with open(dataset_checkpoint_file, 'r') as f:
+                    cached_results = json.load(f)
+
+                current_checkpoint_time = str(Path(args.checkpoint).stat().st_mtime)
+                cached_checkpoint_time = cached_results.get('timestamp', '')
+
+                if current_checkpoint_time != cached_checkpoint_time:
+                    print(f"\n  ⚠ Cached results for {dataset_name} are from a different checkpoint")
+                    print(f"    Cached: {cached_checkpoint_time}")
+                    print(f"    Current: {current_checkpoint_time}")
+                    print(f"    Re-evaluating {dataset_name}...")
+                    # Don't use cache, continue to evaluation below
+                else:
+                    print("\n" + "-" * 80)
+                    print(f"Loading cached results for {dataset_name} (already evaluated)")
+                    print("-" * 80)
+
+                    # Restore raw results from checkpoint
+                    all_labels_combined.extend(cached_results['labels'])
+                    all_probs_combined.extend(cached_results['probs'])
+                    all_preds_combined.extend(cached_results['preds'])
+                    total_loss_combined += cached_results['total_loss']
+                    total_batches += cached_results['num_batches']
+                    per_dataset_results[dataset_name] = {
+                        'num_samples': cached_results['num_samples']
+                    }
+                    print(f"  ✓ Restored {dataset_name}: {cached_results['num_samples']:,} samples")
+                    continue  # Skip to next dataset
+
+            except (json.JSONDecodeError, KeyError, ValueError) as e:
+                print(f"\n  ⚠ Cached results for {dataset_name} are corrupted: {e}")
+                print(f"    Deleting corrupt checkpoint and re-evaluating...")
+                dataset_checkpoint_file.unlink()
+                # Continue to evaluation below
+
         print("\n" + "-" * 80)
         print(f"Loading {dataset_name} {args.split} dataset")
         print("-" * 80)
@@ -437,6 +521,22 @@ def main():
                 'num_samples': len(raw_results['labels'])
             }
             print(f"  ✓ Completed {dataset_name}: {len(raw_results['labels']):,} samples")
+
+            # Save checkpoint for this dataset (in case of crash)
+            checkpoint_data = {
+                'labels': raw_results['labels'].tolist(),
+                'probs': raw_results['probs'].tolist(),
+                'preds': raw_results['preds'].tolist(),
+                'total_loss': raw_results['total_loss'],
+                'num_batches': raw_results['num_batches'],
+                'num_samples': len(raw_results['labels']),
+                'dataset': dataset_name,
+                'split': args.split,
+                'timestamp': str(Path(args.checkpoint).stat().st_mtime)
+            }
+            with open(dataset_checkpoint_file, 'w') as f:
+                json.dump(checkpoint_data, f)
+            print(f"  ✓ Checkpoint saved: {dataset_checkpoint_file.name}")
         else:
             # Single dataset evaluation - use results directly
             results = raw_results
@@ -506,6 +606,15 @@ def main():
         json.dump(eval_results, f, indent=2)
 
     print(f"\n  ✓ Results saved to: {results_file}")
+
+    # Clean up evaluation checkpoints after successful completion
+    if eval_combined and eval_checkpoint_dir.exists():
+        import shutil
+        shutil.rmtree(eval_checkpoint_dir)
+        print(f"  ✓ Cleaned up evaluation checkpoints")
+        print(f"\nNote: If evaluation was interrupted, re-run the same command")
+        print(f"      and it will resume from the last completed dataset.")
+
     print("=" * 80)
 
 
