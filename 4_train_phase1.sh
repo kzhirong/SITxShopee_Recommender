@@ -8,7 +8,7 @@ export PYTORCH_ENABLE_MPS_FALLBACK=1
 # Using 20% sampled datasets for faster training (~2-3 days instead of 11 days)
 python train_llm_ctr.py \
     --phase 1 \
-    --datasets x1_sample20 x2_sample20 \
+    --datasets x1_normalized x2_normalized \
     --epochs 5 \
     --batch_size 128 \
     --lr 1e-4 \

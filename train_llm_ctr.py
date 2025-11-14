@@ -470,6 +470,8 @@ def main():
     # Sequential multi-dataset training
     # We'll train on x1, then x2, sequentially
     dataset_configs = {
+        'x1': 'avazu_x1_normalized',
+        'x2': 'avazu_x2_normalized',
         'x1_sample20': 'avazu_x1_sample20',  # 20% sample for faster development
         'x2_sample20': 'avazu_x2_sample20'   # 20% sample for faster development
     }
