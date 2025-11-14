@@ -306,7 +306,37 @@ def main():
         if key in params and params[key]:
             params[key] = params[key].replace('../../', '')
 
-    # Load unified feature map for multi-dataset training
+    # IMPORTANT: First ensure x4_normalized parquet exists (needed for unified feature map)
+    print(f"  Checking for x4_normalized parquet files...")
+    x4_data_dir = os.path.join(params['data_root'], 'avazu_x4_normalized')
+    x4_feature_map_json = os.path.join(x4_data_dir, "feature_map.json")
+
+    # Create x4_normalized parquet files if they don't exist
+    if not os.path.exists(x4_feature_map_json):
+        print(f"  x4_normalized parquet files not found. Creating them...")
+        from fuxictr.utils import load_dataset_config
+        from fuxictr.preprocess import FeatureProcessor, build_dataset
+
+        x4_params = params.copy()
+        x4_params['dataset_id'] = 'avazu_x4_normalized'
+        x4_specific = load_dataset_config(config_path, 'avazu_x4_normalized')
+        x4_params.update(x4_specific)
+
+        # Fix paths
+        for key in ['data_root', 'test_data', 'train_data', 'valid_data']:
+            if key in x4_params and x4_params[key]:
+                x4_params[key] = x4_params[key].replace('../../', '')
+
+        print(f"    Processing x4_normalized CSVs...")
+        feature_encoder = FeatureProcessor(**x4_params)
+        x4_params["train_data"], x4_params["valid_data"], x4_params["test_data"] = \
+            build_dataset(feature_encoder, **x4_params)
+
+        print(f"    ✓ x4_normalized parquet files created")
+    else:
+        print(f"    ✓ x4_normalized parquet files already exist")
+
+    # Now create unified feature map (requires x4_normalized to exist)
     # This feature map has maximum vocab sizes across x1, x2, x4
     unified_data_dir = os.path.join(params['data_root'], 'avazu_unified')
     unified_feature_map_json = os.path.join(unified_data_dir, "feature_map.json")
@@ -337,41 +367,10 @@ def main():
     model_class = getattr(src, params['model'])
 
     # Use x4_normalized parquet files for analyzer initialization
-    # If parquet files don't exist, create them first
     model_params = params.copy()
-    x4_data_dir = os.path.join(params['data_root'], 'avazu_x4_normalized')
-    x4_feature_map_json = os.path.join(x4_data_dir, "feature_map.json")
-
     model_params['train_data'] = os.path.join(x4_data_dir, 'train.parquet')
     model_params['valid_data'] = os.path.join(x4_data_dir, 'valid.parquet')
     model_params['test_data'] = os.path.join(x4_data_dir, 'test.parquet')
-
-    # Create x4_normalized parquet files if they don't exist
-    if not os.path.exists(x4_feature_map_json):
-        print(f"  x4_normalized parquet files not found. Creating them...")
-        from fuxictr.utils import load_dataset_config
-        from fuxictr.preprocess import FeatureProcessor, build_dataset
-
-        x4_params = params.copy()
-        x4_params['dataset_id'] = 'avazu_x4_normalized'
-        x4_specific = load_dataset_config(config_path, 'avazu_x4_normalized')
-        x4_params.update(x4_specific)
-
-        # Fix paths
-        for key in ['data_root', 'test_data', 'train_data', 'valid_data']:
-            if key in x4_params and x4_params[key]:
-                x4_params[key] = x4_params[key].replace('../../', '')
-
-        print(f"    Processing x4_normalized CSVs...")
-        feature_encoder = FeatureProcessor(**x4_params)
-        x4_params["train_data"], x4_params["valid_data"], x4_params["test_data"] = \
-            build_dataset(feature_encoder, **x4_params)
-
-        model_params['train_data'] = x4_params["train_data"]
-        model_params['valid_data'] = x4_params["valid_data"]
-        model_params['test_data'] = x4_params["test_data"]
-
-        print(f"    ✓ x4_normalized parquet files created")
 
     print(f"  Using parquet files for analyzer:")
     print(f"    Train: {model_params['train_data']}")
