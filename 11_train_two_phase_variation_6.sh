@@ -40,7 +40,6 @@ python train_two_phase_variation_6.py \
     --embedding_dim 16 \
     --encoder_hidden_units 2000 2000 2000 2000 \
     --projector_hidden_dim 2048 \
-    --llm_dim 896 \
     --output_dir checkpoints/llm_two_phase_variation_6 \
     --gpu 0
 

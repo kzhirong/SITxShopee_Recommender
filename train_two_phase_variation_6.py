@@ -56,10 +56,6 @@ from fuxictr.features import FeatureMap
 from fuxictr.utils import load_config
 from fuxictr.pytorch.dataloaders import RankDataLoader
 
-# Import DeepFM modules
-from fuxictr.pytorch.models import DeepFM
-from fuxictr.pytorch import GEN
-
 # Add DeepFM source to path
 sys.path.append('model_zoo/DeepFM/src')
 from projector import FeatureProjector
@@ -155,7 +151,7 @@ class LLM_CTR_Model(nn.Module):
         return logits
 
 
-def train_epoch(model, dataloader, optimizer, device, feature_names, epoch, phase, dataset_name):
+def train_epoch(model, dataloader, optimizer, device, feature_names, epoch, phase, dataset_name, test_mode=False):
     """Train for one epoch."""
     model.train()
     total_loss = 0
@@ -165,6 +161,10 @@ def train_epoch(model, dataloader, optimizer, device, feature_names, epoch, phas
     pbar = tqdm(dataloader, desc=f"Phase {phase} [{dataset_name}] - Epoch {epoch}")
 
     for batch_idx, batch in enumerate(pbar):
+        # Test mode: only process 3 batches
+        if test_mode and batch_idx >= 3:
+            print(f"  [TEST MODE] Stopping after {batch_idx} batches")
+            break
         optimizer.zero_grad(set_to_none=True)
 
         # Prepare batch
@@ -204,7 +204,7 @@ def train_epoch(model, dataloader, optimizer, device, feature_names, epoch, phas
     return final_loss, final_acc
 
 
-def evaluate(model, dataloader, device, feature_names, phase="Evaluation"):
+def evaluate(model, dataloader, device, feature_names, phase="Evaluation", test_mode=False):
     """Evaluate the model."""
     model.eval()
     all_preds = []
@@ -212,7 +212,11 @@ def evaluate(model, dataloader, device, feature_names, phase="Evaluation"):
 
     with torch.no_grad():
         pbar = tqdm(dataloader, desc=f"{phase}")
-        for batch in pbar:
+        for batch_idx, batch in enumerate(pbar):
+            # Test mode: only process 3 batches
+            if test_mode and batch_idx >= 3:
+                print(f"  [TEST MODE] Stopping evaluation after {batch_idx} batches")
+                break
             # Prepare batch
             batch_dict = {}
             for i, name in enumerate(feature_names):
@@ -268,6 +272,10 @@ def main():
     parser.add_argument('--gpu', type=int, default=0,
                        help='GPU device ID (default: 0)')
 
+    # Testing
+    parser.add_argument('--test_mode', action='store_true',
+                       help='Run in test mode (only 3 batches per phase for quick validation)')
+
     args = parser.parse_args()
 
     # Setup device
@@ -279,6 +287,8 @@ def main():
 
     print("=" * 80)
     print("TWO-PHASE LLM-CTR TRAINING (VARIATION 6)")
+    if args.test_mode:
+        print("⚠️  TEST MODE ENABLED - Only 3 batches per phase! ⚠️")
     print("=" * 80)
     print("\nTraining Configuration:")
     print(f"  Phase 1 (Encoder + Projector):")
@@ -320,10 +330,13 @@ def main():
 
     feature_map = FeatureMap('avazu_x4_normalized', x4_data_dir)
     feature_map.load(feature_map_path, params)
-    print(f"  ✓ Loaded feature map: {feature_map.num_fields} fields, {feature_map.num_features} features")
+    print(f"  ✓ Loaded feature map: {feature_map.num_fields} fields, {len(feature_map.features)} features")
+
+    # Import encoder modules
+    from fuxictr.pytorch.layers import FeatureEmbedding
+    from fuxictr.pytorch import GEN
 
     # Create embedding layer
-    from fuxictr.pytorch.layers import FeatureEmbedding
     embedding_layer = FeatureEmbedding(
         feature_map,
         args.embedding_dim
@@ -356,26 +369,26 @@ def main():
     )
 
     tokenizer = AutoTokenizer.from_pretrained("Qwen/Qwen3-0.6B")
-    print(f"  ✓ Loaded Qwen3-0.6B (dim={args.llm_dim})")
+
+    # Get actual LLM hidden size (don't use command-line arg, use actual config)
+    llm_hidden_size = llm.config.hidden_size
+    print(f"  ✓ Loaded Qwen3-0.6B (actual hidden size: {llm_hidden_size})")
 
     # =========================================================================
     # STEP 3: Create Projector
     # =========================================================================
     print("\n[STEP 3] Creating projector...")
 
-    # Calculate encoder output dimension
-    if params.get('concat_emb', False):
-        encoder_output_dim = feature_map.num_fields * params['embedding_dim'] + args.encoder_hidden_units[-1]
-    else:
-        encoder_output_dim = args.encoder_hidden_units[-1]
-
+    # Projector takes each field's embedding and projects to LLM dimension
+    # Input shape: [batch_size, num_fields, embedding_dim]
+    # Output shape: [batch_size, num_fields, llm_dim]
     projector = FeatureProjector(
-        input_dim=encoder_output_dim,
+        feature_dim=params['embedding_dim'],
         hidden_dim=args.projector_hidden_dim,
-        output_dim=args.llm_dim
+        llm_dim=llm_hidden_size  # Use actual LLM hidden size, not args
     ).to(torch.bfloat16)
 
-    print(f"  ✓ Created projector: {encoder_output_dim} → {args.projector_hidden_dim} → {args.llm_dim}")
+    print(f"  ✓ Created projector: {params['embedding_dim']} → {args.projector_hidden_dim} → {llm_hidden_size}")
 
     # =========================================================================
     # PHASE 1: Train Encoder + Projector on x1 + x2
@@ -411,35 +424,27 @@ def main():
         # Load dataset configuration
         data_dir = f'data/Avazu/avazu_{dataset_name}_normalized'
 
-        # Create dataloaders
-        train_gen = RankDataLoader(
-            feature_map=feature_map,
-            stage='train',
-            train_data=os.path.join(data_dir, 'train.parquet'),
-            batch_size=args.phase1_batch_size,
-            shuffle=True,
-            num_workers=0
-        )
+        # Setup dataset params
+        dataset_params = params.copy()
+        dataset_params['batch_size'] = args.phase1_batch_size
+        dataset_params['train_data'] = os.path.join(data_dir, 'train.parquet')
+        dataset_params['valid_data'] = os.path.join(data_dir, 'valid.parquet')
 
-        val_gen = RankDataLoader(
-            feature_map=feature_map,
-            stage='val',
-            valid_data=os.path.join(data_dir, 'valid.parquet'),
-            batch_size=args.phase1_batch_size,
-            shuffle=False,
-            num_workers=0
-        )
+        # Create dataloaders
+        train_gen, valid_gen = RankDataLoader(feature_map, stage='train', **dataset_params).make_iterator()
 
         # Train for 1 epoch
         train_loss, train_acc = train_epoch(
             model_phase1, train_gen, optimizer_phase1, device,
-            feature_map.feature_specs.keys(), epoch=1, phase=1, dataset_name=dataset_name
+            feature_map.features.keys(), epoch=1, phase=1, dataset_name=dataset_name,
+            test_mode=args.test_mode
         )
 
         # Validate
         val_auc, val_logloss, _, _ = evaluate(
-            model_phase1, val_gen, device, feature_map.feature_specs.keys(),
-            phase=f"Phase 1 [{dataset_name}] Validation"
+            model_phase1, valid_gen, device, feature_map.features.keys(),
+            phase=f"Phase 1 [{dataset_name}] Validation",
+            test_mode=args.test_mode
         )
 
         print(f"\n  Phase 1 [{dataset_name}] Results:")
@@ -486,34 +491,28 @@ def main():
     print("\n--- Training on avazu_x4_normalized ---")
     x4_data_dir = 'data/Avazu/avazu_x4_normalized'
 
-    train_gen = RankDataLoader(
-        feature_map=feature_map,
-        stage='train',
-        train_data=os.path.join(x4_data_dir, 'train.parquet'),
-        batch_size=args.phase2_batch_size,
-        shuffle=True,
-        num_workers=0
-    )
+    # Setup dataset params for x4
+    x4_params = params.copy()
+    x4_params['batch_size'] = args.phase2_batch_size
+    x4_params['train_data'] = os.path.join(x4_data_dir, 'train.parquet')
+    x4_params['valid_data'] = os.path.join(x4_data_dir, 'valid.parquet')
+    x4_params['test_data'] = os.path.join(x4_data_dir, 'test.parquet')
 
-    val_gen = RankDataLoader(
-        feature_map=feature_map,
-        stage='val',
-        valid_data=os.path.join(x4_data_dir, 'valid.parquet'),
-        batch_size=args.phase2_batch_size,
-        shuffle=False,
-        num_workers=0
-    )
+    # Create dataloaders
+    train_gen, valid_gen = RankDataLoader(feature_map, stage='train', **x4_params).make_iterator()
 
     # Train for 1 epoch
     train_loss, train_acc = train_epoch(
         model_phase2, train_gen, optimizer_phase2, device,
-        feature_map.feature_specs.keys(), epoch=1, phase=2, dataset_name='x4'
+        feature_map.features.keys(), epoch=1, phase=2, dataset_name='x4',
+        test_mode=args.test_mode
     )
 
     # Validate
     val_auc, val_logloss, _, _ = evaluate(
-        model_phase2, val_gen, device, feature_map.feature_specs.keys(),
-        phase="Phase 2 [x4] Validation"
+        model_phase2, valid_gen, device, feature_map.features.keys(),
+        phase="Phase 2 [x4] Validation",
+        test_mode=args.test_mode
     )
 
     print(f"\n  Phase 2 [x4] Results:")
@@ -536,18 +535,13 @@ def main():
     print("EVALUATION: Test on x4")
     print("=" * 80)
 
-    test_gen = RankDataLoader(
-        feature_map=feature_map,
-        stage='test',
-        test_data=os.path.join(x4_data_dir, 'test.parquet'),
-        batch_size=args.phase2_batch_size,
-        shuffle=False,
-        num_workers=0
-    )
+    # Create test dataloader
+    test_gen = RankDataLoader(feature_map, stage='test', **x4_params).make_iterator()
 
     test_auc, test_logloss, _, _ = evaluate(
-        model_phase2, test_gen, device, feature_map.feature_specs.keys(),
-        phase="Final Test [x4]"
+        model_phase2, test_gen, device, feature_map.features.keys(),
+        phase="Final Test [x4]",
+        test_mode=args.test_mode
     )
 
     print(f"\n  Final Test Results:")
