@@ -1,0 +1,32 @@
+{
+  "individual_results": {
+    "x1": {
+      "auc": 0.5978732712251574,
+      "accuracy": 79.81375731313462,
+      "logloss": 0.5191815229405828,
+      "loss": 0.5191324132922814,
+      "num_samples": 8085794
+    },
+    "x2": {
+      "auc": 0.6522834086484469,
+      "accuracy": 77.23976148786377,
+      "logloss": 0.5447872969383382,
+      "loss": 0.5443799517586906,
+      "num_samples": 8085794
+    },
+    "x4": {
+      "auc": 0.7758959504132359,
+      "accuracy": 83.40690267229101,
+      "logloss": 0.39940359751498505,
+      "loss": 0.3992633702431457,
+      "num_samples": 4042898
+    }
+  },
+  "weighted_averages": {
+    "total_samples": 20214486,
+    "auc": 0.6552418680007832,
+    "accuracy": 79.50278824799206,
+    "logloss": 0.5054682422076029
+  },
+  "note": "These are weighted averages. For true combined AUC/LogLoss, use --dataset all"
+}

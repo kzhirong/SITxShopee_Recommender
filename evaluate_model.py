@@ -297,49 +297,58 @@ def main():
     embedding_layer = deepfm_model.embedding_layer
     encoder = deepfm_model.gen
 
-    # Load LLM
+    # Load LLM with FlashAttention 2 (REQUIRED)
     print("\n  Loading LLM (Qwen3-0.6B)...")
+    print("  ⚠ REQUIREMENT: FlashAttention 2 and Ampere+ GPU (A100, L4, H100, etc.)")
 
-    # Try to use FlashAttention 2 if available and supported by GPU
-    # Otherwise fall back to default attention
-    llm_kwargs = {"torch_dtype": torch.bfloat16}
-    use_flash_attn = False
+    # Check if CUDA is available
+    if device.type != 'cuda':
+        raise RuntimeError(
+            f"FlashAttention 2 requires CUDA GPU, but running on {device}.\n"
+            f"This script requires an Ampere or newer GPU (A100, L4, H100, etc.)."
+        )
 
-    if device.type == 'cuda':
-        try:
-            import flash_attn  # noqa: F401 - Only checking if available, not using directly
-            llm_kwargs["attn_implementation"] = "flash_attention_2"
-            use_flash_attn = True
-            print("  Attempting to use FlashAttention 2...")
-        except ImportError:
-            print("  FlashAttention 2 not installed, using default attention")
-    else:
-        print(f"  Running on {device}, using default attention")
-
-    # Try loading with FlashAttention first, fallback if GPU doesn't support it
+    # Check if FlashAttention is installed
     try:
-        llm = AutoModelForCausalLM.from_pretrained(
-            "Qwen/Qwen3-0.6B",
-            **llm_kwargs
-        ).to(device)
-        if use_flash_attn:
-            print("  ✓ Using FlashAttention 2 (GPU optimization enabled)")
-    except (RuntimeError, ValueError) as e:
-        if use_flash_attn and "flash" in str(e).lower():
-            print(f"  ⚠ FlashAttention 2 not supported on this GPU: {e}")
-            print("  Falling back to default attention...")
-            # Remove FlashAttention and retry
-            llm_kwargs.pop("attn_implementation", None)
-            llm = AutoModelForCausalLM.from_pretrained(
-                "Qwen/Qwen3-0.6B",
-                **llm_kwargs
-            ).to(device)
-            print("  ✓ Using default attention")
-        else:
-            raise  # Re-raise if it's a different error
+        import flash_attn  # noqa: F401
+        print("  ✓ FlashAttention 2 package found")
+    except ImportError:
+        raise ImportError(
+            "FlashAttention 2 is not installed!\n"
+            "Install with: pip install flash-attn --no-build-isolation\n"
+            "This script requires FlashAttention 2 to run."
+        )
+
+    # Load LLM with FlashAttention 2
+    llm = AutoModelForCausalLM.from_pretrained(
+        "Qwen/Qwen3-0.6B",
+        torch_dtype=torch.bfloat16,
+        attn_implementation="flash_attention_2"
+    ).to(device)
+
+    # Test FlashAttention compatibility with dummy forward pass
+    print("  Testing FlashAttention 2 compatibility...")
+    with torch.no_grad():
+        test_input = torch.randn(1, 10, llm.config.hidden_size,
+                                dtype=torch.bfloat16, device=device)
+        try:
+            _ = llm(inputs_embeds=test_input)
+            print("  ✓ FlashAttention 2 working correctly")
+        except RuntimeError as e:
+            if "ampere" in str(e).lower() or "flash" in str(e).lower():
+                raise RuntimeError(
+                    f"GPU does not support FlashAttention 2!\n"
+                    f"Error: {e}\n\n"
+                    f"FlashAttention 2 requires Ampere or newer GPU architecture:\n"
+                    f"  ✓ Supported: A100, L4, H100, RTX 3090, RTX 4090, etc.\n"
+                    f"  ✗ Not supported: V100, T4, K80, P100, etc.\n\n"
+                    f"Your GPU does not meet the requirements."
+                )
+            else:
+                raise  # Different error
 
     tokenizer = AutoTokenizer.from_pretrained("Qwen/Qwen3-0.6B")
-    print(f"  ✓ LLM loaded")
+    print(f"  ✓ LLM loaded with FlashAttention 2")
 
     # Create projector
     projector = FeatureProjector(

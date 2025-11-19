@@ -1,0 +1,17 @@
+{
+  "checkpoint": "checkpoints/llm_ctr_phase2/best_model.pt",
+  "dataset": "x2",
+  "split": "test",
+  "metrics": {
+    "auc": 0.6522834086484469,
+    "accuracy": 77.23976148786377,
+    "logloss": 0.5447872969383382,
+    "loss": 0.5443799517586906,
+    "num_samples": 8085794
+  },
+  "config": {
+    "batch_size": 512,
+    "device": "cuda:0",
+    "prompt_template": "Based on the user's browsing behavior and ad interaction features, predict if they will click on this advertisement. Answer with 1 for click or 0 for no click:"
+  }
+}
