@@ -56,6 +56,10 @@ from fuxictr.features import FeatureMap
 from fuxictr.utils import load_config
 from fuxictr.pytorch.dataloaders import RankDataLoader
 
+# Import DeepFM modules
+from fuxictr.pytorch.models import DeepFM
+from fuxictr.pytorch import GEN
+
 # Add DeepFM source to path
 sys.path.append('model_zoo/DeepFM/src')
 from projector import FeatureProjector
@@ -297,15 +301,26 @@ def main():
     # =========================================================================
     print("\n[STEP 1] Creating encoder from scratch...")
 
-    # Load feature map
-    feature_map_path = 'data/Avazu/avazu_x4_normalized/feature_map.json'
-    feature_map = FeatureMap('avazu_x4_normalized', 'data/Avazu/')
-    feature_map.load(feature_map_path)
-    print(f"  ✓ Loaded feature map: {feature_map.num_fields} fields, {feature_map.num_features} features")
+    # Load config to get params
+    config_path = 'model_zoo/DeepFM/config'
+    experiment_id = 'DeepFM_avazu_normalized'
+    params = load_config(config_path, experiment_id)
 
-    # Import DeepFM modules
-    from fuxictr.pytorch.models import DeepFM
-    from gen import GEN
+    # Fix paths
+    for key in ['data_root', 'test_data', 'train_data', 'valid_data']:
+        if key in params and params[key]:
+            params[key] = params[key].replace('../../', '')
+
+    # Override with command-line args
+    params['embedding_dim'] = args.embedding_dim
+
+    # Load feature map
+    x4_data_dir = os.path.join(params['data_root'], 'avazu_x4_normalized')
+    feature_map_path = os.path.join(x4_data_dir, 'feature_map.json')
+
+    feature_map = FeatureMap('avazu_x4_normalized', x4_data_dir)
+    feature_map.load(feature_map_path, params)
+    print(f"  ✓ Loaded feature map: {feature_map.num_fields} fields, {feature_map.num_features} features")
 
     # Create embedding layer
     from fuxictr.pytorch.layers import FeatureEmbedding
@@ -315,21 +330,16 @@ def main():
     )
     print(f"  ✓ Created embedding layer (dim={args.embedding_dim})")
 
-    # Create GEN encoder
-    encoder_params = {
-        'hidden_units': args.encoder_hidden_units,
-        'hidden_activations': 'relu',
-        'batch_norm': False,
-        'net_dropout': 0,
-        'emb_activation': 'relu',
-        'concat_emb': True,
-        'gamma': 6
-    }
+    # Create GEN encoder (use params from config, override with args)
+    params['hidden_units'] = args.encoder_hidden_units
+
+    # Remove embedding_dim from params dict to avoid duplicate argument error
+    gen_params = {k: v for k, v in params.items() if k != 'embedding_dim'}
 
     encoder = GEN(
         feature_map,
-        args.embedding_dim,
-        **encoder_params
+        params['embedding_dim'],
+        **gen_params
     )
     print(f"  ✓ Created GEN encoder: {args.encoder_hidden_units}")
 
@@ -354,8 +364,8 @@ def main():
     print("\n[STEP 3] Creating projector...")
 
     # Calculate encoder output dimension
-    if encoder_params['concat_emb']:
-        encoder_output_dim = feature_map.num_fields * args.embedding_dim + args.encoder_hidden_units[-1]
+    if params.get('concat_emb', False):
+        encoder_output_dim = feature_map.num_fields * params['embedding_dim'] + args.encoder_hidden_units[-1]
     else:
         encoder_output_dim = args.encoder_hidden_units[-1]
 
