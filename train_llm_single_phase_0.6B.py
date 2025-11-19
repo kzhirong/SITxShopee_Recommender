@@ -57,7 +57,7 @@ class LLM_CTR_Model(nn.Module):
         - Trained: Embeddings + Encoder + Projector + LLM (all trained together)
     """
 
-    def __init__(self, embedding_layer, encoder, projector, llm, tokenizer):
+    def __init__(self, embedding_layer, encoder, projector, llm, tokenizer, prompt_template):
         super().__init__()
         self.embedding_layer = embedding_layer
         self.encoder = encoder
@@ -80,13 +80,20 @@ class LLM_CTR_Model(nn.Module):
         print(f"Token ID for '0': {self.token_0}")
         print(f"Token ID for '1': {self.token_1}")
 
-    def forward(self, batch_dict, prompt_template):
+        # Cache tokenized prompt (token IDs only - NOT embeddings!)
+        # Embeddings will be computed fresh each forward pass using current LLM weights
+        print(f"\n  Caching tokenized prompt (token IDs only)...")
+        print(f"  Prompt: '{prompt_template}'")
+        self.prompt_token_ids = tokenizer(prompt_template, return_tensors="pt").input_ids
+        print(f"  ✓ Cached {self.prompt_token_ids.shape[1]} prompt tokens")
+        print(f"  Note: Embeddings computed fresh each batch (no stale embeddings!)")
+
+    def forward(self, batch_dict):
         """
         Forward pass through the complete pipeline.
 
         Args:
             batch_dict: Dictionary of feature tensors
-            prompt_template: Text prompt string (embeddings computed fresh each time)
 
         Returns:
             logits: Binary classification logits [batch_size, 2] for [class_0, class_1]
@@ -108,10 +115,11 @@ class LLM_CTR_Model(nn.Module):
         # 3. Encoded → Projector
         projected = self.projector(encoded)  # [batch_size, num_fields, llm_dim]
 
-        # 4. Compute prompt embeddings (NO CACHING - always fresh)
-        # This ensures prompt embeddings update as LLM trains
-        tokens = self.tokenizer(prompt_template, return_tensors="pt").to(projected.device)
-        prompt_embeds = self.llm.get_input_embeddings()(tokens.input_ids)  # [1, seq_len, llm_dim]
+        # 4. Compute prompt embeddings from cached token IDs
+        # Token IDs are cached (never change), but embeddings computed fresh using current LLM weights
+        # This ensures embeddings update as LLM trains (no stale embeddings!)
+        prompt_token_ids = self.prompt_token_ids.to(projected.device)  # Move to correct device
+        prompt_embeds = self.llm.get_input_embeddings()(prompt_token_ids)  # [1, seq_len, llm_dim] - uses CURRENT weights!
         prompt_embeds = prompt_embeds.repeat(batch_size, 1, 1)  # [batch_size, seq_len, llm_dim]
 
         # 5. Concatenate [text + projected features]
@@ -134,7 +142,7 @@ class LLM_CTR_Model(nn.Module):
         return logits
 
 
-def train_epoch(model, dataloader, optimizer, device, feature_names, prompt_template, epoch):
+def train_epoch(model, dataloader, optimizer, device, feature_names, epoch):
     """Train for one epoch."""
     model.train()
     total_loss = 0
@@ -150,8 +158,8 @@ def train_epoch(model, dataloader, optimizer, device, feature_names, prompt_temp
         batch_dict = {feat: batch[feat].to(device) for feat in feature_names}
         labels = batch['label'].long().squeeze().to(device)  # [batch_size]
 
-        # Forward pass (prompt embeddings computed fresh each time - no caching!)
-        logits = model(batch_dict, prompt_template)  # [batch_size, 2]
+        # Forward pass (prompt token IDs cached, embeddings computed fresh!)
+        logits = model(batch_dict)  # [batch_size, 2]
 
         # Cross-entropy loss
         loss = F.cross_entropy(logits, labels)
@@ -178,7 +186,7 @@ def train_epoch(model, dataloader, optimizer, device, feature_names, prompt_temp
     return avg_loss, accuracy
 
 
-def evaluate(model, dataloader, device, feature_names, prompt_template, split_name="Validation"):
+def evaluate(model, dataloader, device, feature_names, split_name="Validation"):
     """Evaluate on validation/test set with AUC calculation."""
     model.eval()
     total_loss = 0
@@ -194,8 +202,8 @@ def evaluate(model, dataloader, device, feature_names, prompt_template, split_na
             batch_dict = {feat: batch[feat].to(device) for feat in feature_names}
             labels = batch['label'].long().squeeze().to(device)
 
-            # Forward pass (prompt embeddings computed fresh - no caching!)
-            logits = model(batch_dict, prompt_template)
+            # Forward pass (prompt token IDs cached, embeddings computed fresh!)
+            logits = model(batch_dict)
             loss = F.cross_entropy(logits, labels)
 
             # Get probabilities for AUC
@@ -226,19 +234,19 @@ def evaluate(model, dataloader, device, feature_names, prompt_template, split_na
 def main():
     parser = argparse.ArgumentParser(description='Train LLM-CTR model (Single-Phase)')
     parser.add_argument('--epochs', type=int, default=100,
-                       help='Number of training epochs (default: 100)')
+                    help='Number of training epochs (default: 100)')
     parser.add_argument('--batch_size', type=int, default=256,
-                       help='Batch size (default: 256)')
+                    help='Batch size (default: 256)')
     parser.add_argument('--lr', type=float, default=1e-4,
-                       help='Learning rate for LLM/projector (default: 1e-4)')
+                    help='Learning rate for LLM/projector (default: 1e-4)')
     parser.add_argument('--encoder_lr', type=float, default=1e-3,
-                       help='Learning rate for encoder/embeddings (default: 1e-3)')
+                    help='Learning rate for encoder/embeddings (default: 1e-3)')
     parser.add_argument('--embedding_dim', type=int, default=16,
-                       help='Embedding dimension (default: 16)')
+                    help='Embedding dimension (default: 16)')
     parser.add_argument('--patience', type=int, default=2,
-                       help='Early stopping patience (default: 2)')
+                    help='Early stopping patience (default: 2)')
     parser.add_argument('--gpu', type=int, default=0,
-                       help='GPU device ID (-1 for CPU)')
+                    help='GPU device ID (-1 for CPU)')
 
     args = parser.parse_args()
 
@@ -305,7 +313,10 @@ def main():
     print(f"\n  Initializing Feature Encoder and GEN from scratch...")
 
     embedding_layer = FeatureEmbedding(feature_map, params['embedding_dim'])
-    encoder = GEN(feature_map, params['embedding_dim'], **params)
+
+    # Remove embedding_dim from params dict to avoid duplicate argument error
+    gen_params = {k: v for k, v in params.items() if k != 'embedding_dim'}
+    encoder = GEN(feature_map, params['embedding_dim'], **gen_params)
 
     print(f"  ✓ Feature Encoder initialized (trainable)")
     print(f"  ✓ GEN Encoder initialized (trainable)")
@@ -381,13 +392,17 @@ def main():
 
     print(f"  Projector: {params['embedding_dim']}D → {llm.config.hidden_size}D (bfloat16)")
 
-    # Create LLM-CTR model
+    # Define prompt template
+    prompt_template = "Based on the user's browsing behavior and ad interaction features, predict if they will click on this advertisement. Answer with 1 for click or 0 for no click:"
+
+    # Create LLM-CTR model (prompt_template cached during initialization)
     model = LLM_CTR_Model(
         embedding_layer=embedding_layer,
         encoder=encoder,
         projector=projector,
         llm=llm,
-        tokenizer=tokenizer
+        tokenizer=tokenizer,
+        prompt_template=prompt_template
     ).to(device)
 
     # Count trainable parameters
@@ -411,22 +426,22 @@ def main():
     print(f"    Projector: lr={args.lr}")
     print(f"    LLM: lr={args.lr}")
 
-    # Define prompt template
-    prompt_template = "Based on the user's browsing behavior and ad interaction features, predict if they will click on this advertisement. Answer with 1 for click or 0 for no click:"
-
-    print(f"\n  Prompt: '{prompt_template}'")
-
     # Load training data
     print("\n" + "-" * 80)
     print("STEP 4: Loading x4 dataset")
     print("-" * 80)
 
     # Create dataloaders
-    model_params['num_workers'] = 0  # Colab compatibility
-    model_params['batch_size'] = args.batch_size
+    params['num_workers'] = 0  # Colab compatibility
+    params['batch_size'] = args.batch_size
 
-    train_gen, valid_gen = RankDataLoader(feature_map, stage='train', **model_params).make_iterator()
-    test_gen = RankDataLoader(feature_map, stage='test', **model_params).make_iterator()
+    # Set data paths for x4
+    params['train_data'] = os.path.join(x4_data_dir, 'train.parquet')
+    params['valid_data'] = os.path.join(x4_data_dir, 'valid.parquet')
+    params['test_data'] = os.path.join(x4_data_dir, 'test.parquet')
+
+    train_gen, valid_gen = RankDataLoader(feature_map, stage='train', **params).make_iterator()
+    test_gen = RankDataLoader(feature_map, stage='test', **params).make_iterator()
 
     print(f"  ✓ Train batches: {len(train_gen)}")
     print(f"  ✓ Valid batches: {len(valid_gen)}")
@@ -441,8 +456,8 @@ def main():
     print("STEP 5: Training")
     print("-" * 80)
     print(f"\n  Training for up to {args.epochs} epochs with early stopping (patience={args.patience})")
-    print(f"  NOTE: Prompt embeddings are computed fresh each batch (no caching)")
-    print(f"        This ensures embeddings update as LLM trains!")
+    print(f"  NOTE: Prompt token IDs cached (fast), embeddings computed fresh each batch")
+    print(f"        This ensures embeddings update as LLM trains (no stale embeddings!)")
 
     results = []
     best_val_auc = 0.0
@@ -455,14 +470,12 @@ def main():
 
         # Train
         train_loss, train_acc = train_epoch(
-            model, train_gen, optimizer, device, feature_names,
-            prompt_template, epoch
+            model, train_gen, optimizer, device, feature_names, epoch
         )
 
         # Validate
         val_loss, val_acc, val_auc, val_logloss = evaluate(
-            model, valid_gen, device, feature_names,
-            prompt_template, "Validation"
+            model, valid_gen, device, feature_names, "Validation"
         )
 
         print(f"\nEpoch {epoch} Summary:")
@@ -529,8 +542,7 @@ def main():
 
     # Evaluate on test set
     test_loss, test_acc, test_auc, test_logloss = evaluate(
-        model, test_gen, device, feature_names,
-        prompt_template, "Test"
+        model, test_gen, device, feature_names, "Test"
     )
 
     print(f"\nTest Set Results:")

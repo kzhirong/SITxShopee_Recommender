@@ -23,7 +23,7 @@ echo ""
 
 python train_llm_single_phase_0.6B.py \
     --epochs 100 \
-    --batch_size 256 \
+    --batch_size 32 \
     --lr 1e-4 \
     --encoder_lr 1e-3 \
     --embedding_dim 16 \
