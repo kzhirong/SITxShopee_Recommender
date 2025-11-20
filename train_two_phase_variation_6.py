@@ -1,15 +1,15 @@
 #!/usr/bin/env python3
 """
-Two-Phase LLM-CTR Training (Variation 6) - Train Encoder from Scratch
+Two-Phase LLM-CTR Training (Variation 6) - Fine-tune Baseline Encoder
 
 This variant combines aspects of single-phase and two-phase training:
-- Architecture: Same as single-phase (encoder trained, not from baseline)
+- Architecture: Uses pre-trained baseline encoder (fine-tuned in Phase 1)
 - Training: Two phases (Phase 1: encoder+projector, Phase 2: projector+LLM)
 
-Phase 1: Train encoder + projector on x1 + x2 (LLM frozen)
-    - Feature Encoder: TRAINABLE (from scratch)
-    - GEN Encoder: TRAINABLE (from scratch)
-    - Projector: TRAINABLE
+Phase 1: Fine-tune encoder + train projector on x1 + x2 (LLM frozen)
+    - Feature Encoder: TRAINABLE (from baseline x4)
+    - GEN Encoder: TRAINABLE (from baseline x4)
+    - Projector: TRAINABLE (from scratch)
     - LLM: FROZEN
     - Data: x1 (1 epoch) → x2 (1 epoch)
 
@@ -23,11 +23,13 @@ Phase 2: Train projector + LLM on x4 (encoder frozen)
 Key Features:
 - Single script execution (Phase 1 → Phase 2 → Evaluation)
 - Token ID caching (NO stale embeddings!)
-- Encoder trained from scratch (no baseline dependency)
+- Encoder initialized from baseline (trained on x4)
+- Encoder fine-tuned in Phase 1 on x1+x2
 - Integrated evaluation on x4
 
 Usage:
     python train_two_phase_variation_6.py \
+        --baseline_checkpoint "model_zoo/DeepFM/Avazu/DeepFM_avazu_normalized/avazu_x4_normalized/DeepFM_avazu_normalized.model" \
         --phase1_batch_size 256 \
         --phase2_batch_size 32 \
         --phase1_lr 1e-3 \
@@ -274,6 +276,8 @@ def main():
                        help='LLM embedding dimension for Qwen3-0.6B (default: 896)')
 
     # Paths
+    parser.add_argument('--baseline_checkpoint', type=str, required=True,
+                       help='Path to baseline DeepFM checkpoint')
     parser.add_argument('--output_dir', type=str, default='checkpoints/llm_two_phase_variation_6',
                        help='Directory to save checkpoints')
 
@@ -341,29 +345,37 @@ def main():
     feature_map.load(feature_map_path, params)
     print(f"  ✓ Loaded feature map: {feature_map.num_fields} fields, {len(feature_map.features)} features")
 
-    # Import encoder modules
-    from fuxictr.pytorch.layers import FeatureEmbedding
-    from fuxictr.pytorch import GEN
+    # Load baseline DeepFM model to extract encoder
+    print(f"\n  Loading baseline encoder from checkpoint...")
+    model_src_path = "model_zoo.DeepFM.src"
+    src = importlib.import_module(model_src_path)
+    model_class = getattr(src, params['model'])
 
-    # Create embedding layer
-    embedding_layer = FeatureEmbedding(
-        feature_map,
-        args.embedding_dim
-    )
-    print(f"  ✓ Created embedding layer (dim={args.embedding_dim})")
+    # Create DeepFM model structure
+    model_params = params.copy()
+    model_params['train_data'] = os.path.join(x4_data_dir, 'train.parquet')
+    model_params['valid_data'] = os.path.join(x4_data_dir, 'valid.parquet')
+    model_params['test_data'] = os.path.join(x4_data_dir, 'test.parquet')
 
-    # Create GEN encoder (use params from config, override with args)
-    params['hidden_units'] = args.encoder_hidden_units
+    deepfm_model = model_class(feature_map, **model_params)
 
-    # Remove embedding_dim from params dict to avoid duplicate argument error
-    gen_params = {k: v for k, v in params.items() if k != 'embedding_dim'}
+    # Load baseline checkpoint weights
+    import glob
+    checkpoint_files = glob.glob(args.baseline_checkpoint)
+    if not checkpoint_files:
+        raise FileNotFoundError(f"Baseline checkpoint not found: {args.baseline_checkpoint}")
+    checkpoint_path = checkpoint_files[0]
 
-    encoder = GEN(
-        feature_map,
-        params['embedding_dim'],
-        **gen_params
-    )
-    print(f"  ✓ Created GEN encoder: {args.encoder_hidden_units}")
+    print(f"  Loading weights from: {checkpoint_path}")
+    deepfm_model.load_weights(checkpoint_path)
+    deepfm_model.eval()
+
+    # Extract encoder components (will be fine-tuned in Phase 1)
+    embedding_layer = deepfm_model.embedding_layer
+    encoder = deepfm_model.gen
+
+    print(f"  ✓ Feature Encoder loaded from baseline (will be trainable in Phase 1)")
+    print(f"  ✓ GEN Encoder loaded from baseline (will be trainable in Phase 1)")
 
     # =========================================================================
     # STEP 2: Load LLM with FlashAttention 2

@@ -19,6 +19,7 @@ echo "=========================================="
 echo ""
 
 python train_two_phase_variation_6.py \
+    --baseline_checkpoint "model_zoo/DeepFM/Avazu/DeepFM_avazu_normalized/avazu_x4_normalized/DeepFM_avazu_normalized.model" \
     --test_mode \
     --phase1_batch_size 256 \
     --phase2_batch_size 32 \

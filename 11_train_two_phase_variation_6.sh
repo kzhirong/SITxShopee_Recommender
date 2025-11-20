@@ -2,13 +2,13 @@
 
 echo "=========================================="
 echo "Two-Phase LLM-CTR Training (Variation 6)"
-echo "Train Encoder from Scratch"
+echo "Fine-tune Baseline Encoder"
 echo "=========================================="
 echo ""
 echo "Phase 1: Encoder + Projector Training"
-echo "  - Feature Encoder: TRAINABLE (from scratch)"
-echo "  - GEN Encoder: TRAINABLE (from scratch)"
-echo "  - Projector: TRAINABLE"
+echo "  - Feature Encoder: TRAINABLE (from baseline x4)"
+echo "  - GEN Encoder: TRAINABLE (from baseline x4)"
+echo "  - Projector: TRAINABLE (from scratch)"
 echo "  - LLM: FROZEN"
 echo "  - Data: x1 (1 epoch) → x2 (1 epoch)"
 echo "  - Batch size: 256"
@@ -26,13 +26,15 @@ echo ""
 echo "Evaluation: Automatic test on x4"
 echo ""
 echo "Key Features:"
-echo "  ✓ Encoder trained from scratch (no baseline)"
+echo "  ✓ Encoder from baseline (trained on x4)"
+echo "  ✓ Encoder fine-tuned in Phase 1 (x1+x2)"
 echo "  ✓ Token ID caching (no stale embeddings!)"
 echo "  ✓ Unified script (Phase 1 → Phase 2 → Eval)"
 echo "=========================================="
 echo ""
 
 python train_two_phase_variation_6.py \
+    --baseline_checkpoint "model_zoo/DeepFM/Avazu/DeepFM_avazu_normalized/avazu_x4_normalized/DeepFM_avazu_normalized.model" \
     --phase1_batch_size 256 \
     --phase2_batch_size 32 \
     --phase1_lr 1e-3 \
