@@ -137,7 +137,7 @@ class LLM_CTR_Model(nn.Module):
         return logits
 
 
-def train_epoch(model, dataloader, optimizer, device, feature_names, epoch, phase, dataset_name):
+def train_epoch(model, dataloader, optimizer, device, feature_names, epoch, phase, dataset_name, test_mode=False):
     """Train for one epoch."""
     model.train()
     total_loss = 0
@@ -147,6 +147,11 @@ def train_epoch(model, dataloader, optimizer, device, feature_names, epoch, phas
     pbar = tqdm(dataloader, desc=f"Phase {phase} [{dataset_name}] - Epoch {epoch}")
 
     for batch_idx, batch in enumerate(pbar):
+        # Test mode: only process 3 batches
+        if test_mode and batch_idx >= 3:
+            print(f"  [TEST MODE] Stopping after {batch_idx} batches")
+            break
+
         optimizer.zero_grad(set_to_none=True)
 
         # Move batch to device
@@ -175,13 +180,13 @@ def train_epoch(model, dataloader, optimizer, device, feature_names, epoch, phas
             'acc': f'{100.0 * correct / total:.2f}%'
         })
 
-    avg_loss = total_loss / len(dataloader)
-    accuracy = 100.0 * correct / total
+    avg_loss = total_loss / len(dataloader) if len(dataloader) > 0 else 0
+    accuracy = 100.0 * correct / total if total > 0 else 0
 
     return avg_loss, accuracy
 
 
-def evaluate(model, dataloader, device, feature_names, phase, dataset_name, split_name="Validation"):
+def evaluate(model, dataloader, device, feature_names, phase, dataset_name, split_name="Validation", test_mode=False):
     """Evaluate on validation/test set with AUC calculation."""
     model.eval()
     total_loss = 0
@@ -192,7 +197,12 @@ def evaluate(model, dataloader, device, feature_names, phase, dataset_name, spli
     with torch.no_grad():
         pbar = tqdm(dataloader, desc=f"Phase {phase} [{dataset_name}] - {split_name}")
 
-        for batch in pbar:
+        for batch_idx, batch in enumerate(pbar):
+            # Test mode: only process 3 batches
+            if test_mode and batch_idx >= 3:
+                print(f"  [TEST MODE] Stopping after {batch_idx} batches")
+                break
+
             # Move batch to device
             batch_dict = {feat: batch[feat].to(device) for feat in feature_names}
             labels = batch['label'].long().squeeze().to(device)
@@ -218,10 +228,19 @@ def evaluate(model, dataloader, device, feature_names, phase, dataset_name, spli
     all_probs = np.array(all_probs)
     all_preds = np.array(all_preds)
 
-    avg_loss = total_loss / len(dataloader)
-    accuracy = (all_preds == all_labels).mean() * 100
-    auc = roc_auc_score(all_labels, all_probs)
-    logloss = log_loss(all_labels, all_probs)
+    avg_loss = total_loss / len(dataloader) if len(dataloader) > 0 else 0
+    accuracy = (all_preds == all_labels).mean() * 100 if len(all_labels) > 0 else 0
+
+    # Handle edge case where only one class is present (can happen in test mode)
+    unique_labels = len(set(all_labels))
+    if unique_labels < 2:
+        print(f"\n  ⚠ Warning: Only {unique_labels} unique label(s) in evaluation data")
+        print(f"  This is normal in test mode with only 3 batches")
+        auc = 0.5  # Random baseline
+        logloss = 0.693  # -log(0.5) for binary classification
+    else:
+        auc = roc_auc_score(all_labels, all_probs)
+        logloss = log_loss(all_labels, all_probs)
 
     return avg_loss, accuracy, auc, logloss
 
@@ -244,6 +263,8 @@ def main():
                        help='Path to baseline DeepFM checkpoint')
     parser.add_argument('--gpu', type=int, default=0,
                        help='GPU device ID (-1 for CPU)')
+    parser.add_argument('--test_mode', action='store_true',
+                       help='Run in test mode (only 3 batches per epoch for quick validation)')
 
     args = parser.parse_args()
 
@@ -261,6 +282,13 @@ def main():
     print("=" * 80)
     print("UNIFIED TWO-PHASE LLM-CTR TRAINING")
     print("=" * 80)
+
+    if args.test_mode:
+        print("\n⚠ ⚠ ⚠  TEST MODE ENABLED  ⚠ ⚠ ⚠")
+        print("  Only 3 batches per epoch will be processed for quick validation")
+        print("  This is NOT for actual training - only for testing the pipeline!")
+        print("")
+
     print(f"\nConfiguration:")
     print(f"  Phase 1: Train projector on x1+x2 ({args.phase1_epochs} epoch each)")
     print(f"  Phase 2: Train projector+LLM on x4 ({args.phase2_epochs} epoch)")
@@ -269,6 +297,8 @@ def main():
     print(f"  Phase 1 LR: {args.phase1_lr}")
     print(f"  Phase 2 LR: {args.phase2_lr}")
     print(f"  Device: {device}")
+    if args.test_mode:
+        print(f"  Test mode: Only 3 batches per epoch")
 
     # Load baseline model configuration
     print("\n" + "-" * 80)
@@ -481,11 +511,12 @@ def main():
         for epoch in range(1, args.phase1_epochs + 1):
             train_loss, train_acc = train_epoch(
                 model_phase1, train_gen, optimizer_phase1, device, feature_names,
-                epoch, 1, dataset_name
+                epoch, 1, dataset_name, test_mode=args.test_mode
             )
 
             val_loss, val_acc, val_auc, val_logloss = evaluate(
-                model_phase1, valid_gen, device, feature_names, 1, dataset_name, "Validation"
+                model_phase1, valid_gen, device, feature_names, 1, dataset_name, "Validation",
+                test_mode=args.test_mode
             )
 
             print(f"\n{dataset_name.upper()} - Epoch {epoch} Summary:")
@@ -584,11 +615,12 @@ def main():
     for epoch in range(1, args.phase2_epochs + 1):
         train_loss, train_acc = train_epoch(
             model_phase2, train_gen, optimizer_phase2, device, feature_names,
-            epoch, 2, 'x4'
+            epoch, 2, 'x4', test_mode=args.test_mode
         )
 
         val_loss, val_acc, val_auc, val_logloss = evaluate(
-            model_phase2, valid_gen, device, feature_names, 2, 'x4', "Validation"
+            model_phase2, valid_gen, device, feature_names, 2, 'x4', "Validation",
+            test_mode=args.test_mode
         )
 
         print(f"\nPhase 2 - Epoch {epoch} Summary:")
@@ -635,7 +667,8 @@ def main():
     print("=" * 80)
 
     test_loss, test_acc, test_auc, test_logloss = evaluate(
-        model_phase2, test_gen, device, feature_names, 2, 'x4', "Test"
+        model_phase2, test_gen, device, feature_names, 2, 'x4', "Test",
+        test_mode=args.test_mode
     )
 
     print(f"\nTest Set Results (x4):")

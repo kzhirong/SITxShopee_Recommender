@@ -142,7 +142,7 @@ class LLM_CTR_Model(nn.Module):
         return logits
 
 
-def train_epoch(model, dataloader, optimizer, device, feature_names, epoch):
+def train_epoch(model, dataloader, optimizer, device, feature_names, epoch, test_mode=False):
     """Train for one epoch."""
     model.train()
     total_loss = 0
@@ -152,6 +152,10 @@ def train_epoch(model, dataloader, optimizer, device, feature_names, epoch):
     pbar = tqdm(dataloader, desc=f"Training - Epoch {epoch}")
 
     for batch_idx, batch in enumerate(pbar):
+        # Test mode: only process 3 batches
+        if test_mode and batch_idx >= 3:
+            print(f"  [TEST MODE] Stopping after {batch_idx} batches")
+            break
         optimizer.zero_grad(set_to_none=True)
 
         # Move batch to device
@@ -186,7 +190,7 @@ def train_epoch(model, dataloader, optimizer, device, feature_names, epoch):
     return avg_loss, accuracy
 
 
-def evaluate(model, dataloader, device, feature_names, split_name="Validation"):
+def evaluate(model, dataloader, device, feature_names, split_name="Validation", test_mode=False):
     """Evaluate on validation/test set with AUC calculation."""
     model.eval()
     total_loss = 0
@@ -197,7 +201,11 @@ def evaluate(model, dataloader, device, feature_names, split_name="Validation"):
     with torch.no_grad():
         pbar = tqdm(dataloader, desc=f"Evaluating {split_name}")
 
-        for batch in pbar:
+        for batch_idx, batch in enumerate(pbar):
+            # Test mode: only process 3 batches
+            if test_mode and batch_idx >= 3:
+                print(f"  [TEST MODE] Stopping evaluation after {batch_idx} batches")
+                break
             # Move batch to device
             batch_dict = {feat: batch[feat].to(device) for feat in feature_names}
             labels = batch['label'].long().squeeze().to(device)
@@ -225,8 +233,17 @@ def evaluate(model, dataloader, device, feature_names, split_name="Validation"):
 
     avg_loss = total_loss / len(dataloader)
     accuracy = (all_preds == all_labels).mean() * 100
-    auc = roc_auc_score(all_labels, all_probs)
-    logloss = log_loss(all_labels, all_probs)
+
+    # Handle edge case where only one class is present (can happen in test mode)
+    unique_labels = len(set(all_labels))
+    if unique_labels < 2:
+        print(f"\n  ⚠ Warning: Only {unique_labels} unique label(s) in evaluation data")
+        print(f"  This is normal in test mode with only 3 batches")
+        auc = 0.5  # Random baseline
+        logloss = 0.693  # -log(0.5) for binary classification
+    else:
+        auc = roc_auc_score(all_labels, all_probs)
+        logloss = log_loss(all_labels, all_probs)
 
     return avg_loss, accuracy, auc, logloss
 
@@ -248,6 +265,10 @@ def main():
     parser.add_argument('--gpu', type=int, default=0,
                     help='GPU device ID (-1 for CPU)')
 
+    # Testing
+    parser.add_argument('--test_mode', action='store_true',
+                    help='Run in test mode (only 3 batches per epoch for quick validation)')
+
     args = parser.parse_args()
 
     # Setup device
@@ -264,6 +285,13 @@ def main():
     print("=" * 80)
     print("LLM-CTR SINGLE-PHASE TRAINING (0.6B)")
     print("=" * 80)
+
+    if args.test_mode:
+        print("\n⚠ ⚠ ⚠  TEST MODE ENABLED  ⚠ ⚠ ⚠")
+        print("  Only 3 batches per epoch will be processed for quick validation")
+        print("  This is NOT for actual training - only for testing the pipeline!")
+        print("")
+
     print(f"\nConfiguration:")
     print(f"  Model: Qwen3-0.6B")
     print(f"  Dataset: x4 unified (train + eval)")
@@ -274,6 +302,8 @@ def main():
     print(f"  Embedding dimension: {args.embedding_dim}")
     print(f"  Device: {device}")
     print(f"  Training: Feature Encoder + GEN + Projector + LLM (all trained together)")
+    if args.test_mode:
+        print(f"  Test mode: Only 3 batches per epoch")
 
     # Load configuration for x4 dataset
     print("\n" + "-" * 80)
@@ -470,12 +500,12 @@ def main():
 
         # Train
         train_loss, train_acc = train_epoch(
-            model, train_gen, optimizer, device, feature_names, epoch
+            model, train_gen, optimizer, device, feature_names, epoch, test_mode=args.test_mode
         )
 
         # Validate
         val_loss, val_acc, val_auc, val_logloss = evaluate(
-            model, valid_gen, device, feature_names, "Validation"
+            model, valid_gen, device, feature_names, "Validation", test_mode=args.test_mode
         )
 
         print(f"\nEpoch {epoch} Summary:")
@@ -542,7 +572,7 @@ def main():
 
     # Evaluate on test set
     test_loss, test_acc, test_auc, test_logloss = evaluate(
-        model, test_gen, device, feature_names, "Test"
+        model, test_gen, device, feature_names, "Test", test_mode=args.test_mode
     )
 
     print(f"\nTest Set Results:")

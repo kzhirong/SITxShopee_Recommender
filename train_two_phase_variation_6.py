@@ -229,14 +229,23 @@ def evaluate(model, dataloader, device, feature_names, phase="Evaluation", test_
 
             # Forward pass
             logits = model(batch_dict)
-            probs = F.softmax(logits, dim=1)[:, 1].cpu().numpy()
+            # Convert to float32 before numpy (bfloat16 not supported by numpy)
+            probs = F.softmax(logits, dim=1)[:, 1].float().cpu().numpy()
 
             all_preds.extend(probs)
             all_labels.extend(labels)
 
     # Calculate metrics
-    auc = roc_auc_score(all_labels, all_preds)
-    logloss = log_loss(all_labels, all_preds)
+    # Handle edge case where only one class is present (can happen in test mode with few batches)
+    unique_labels = len(set(all_labels))
+    if unique_labels < 2:
+        print(f"\n  ⚠ Warning: Only {unique_labels} unique label(s) in evaluation data")
+        print(f"  This is normal in test mode with only 3 batches")
+        auc = 0.5  # Random baseline
+        logloss = 0.693  # -log(0.5) for binary
+    else:
+        auc = roc_auc_score(all_labels, all_preds)
+        logloss = log_loss(all_labels, all_preds)
 
     return auc, logloss, all_preds, all_labels
 
