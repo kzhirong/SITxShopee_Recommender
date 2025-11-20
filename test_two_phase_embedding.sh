@@ -21,7 +21,7 @@ python train_two_phase_embedding.py \
     --test_mode \
     --phase1_epochs 1 \
     --phase2_epochs 1 \
-    --phase1_batch_size 256 \
+    --phase1_batch_size 32 \
     --phase2_batch_size 32 \
     --phase1_lr 1e-3 \
     --phase2_lr 1e-4 \
