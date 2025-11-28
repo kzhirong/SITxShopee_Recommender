@@ -48,7 +48,7 @@ avazu_x4_3bbbc4c9:
     valid_data: ../../data/Avazu/avazu_x4_3bbbc4c9/valid.csv
 
 avazu_x4_normalized:
-    data_format: parquet
+    data_format: csv
     data_root: ../../data/Avazu/
     feature_cols:
     -   active: true
@@ -62,13 +62,13 @@ avazu_x4_normalized:
     - {active: true, dtype: str, name: weekend, preprocess: convert_weekend, type: categorical}
     label_col: {dtype: float, name: label}
     min_categr_count: 2
-    rebuild_dataset: false
-    test_data: ../../data/Avazu/avazu_x4_normalized/test.parquet
-    train_data: ../../data/Avazu/avazu_x4_normalized/train.parquet
-    valid_data: ../../data/Avazu/avazu_x4_normalized/valid.parquet
+    rebuild_dataset: true
+    test_data: ../../data/Avazu/avazu_x4_normalized/test.csv
+    train_data: ../../data/Avazu/avazu_x4_normalized/train.csv
+    valid_data: ../../data/Avazu/avazu_x4_normalized/valid.csv
 
 avazu_x1_normalized:
-    data_format: parquet
+    data_format: csv
     data_root: ../../data/Avazu/
     feature_cols:
     -   active: true
@@ -82,13 +82,13 @@ avazu_x1_normalized:
     - {active: true, dtype: str, name: weekend, preprocess: convert_weekend, type: categorical}
     label_col: {dtype: float, name: label}
     min_categr_count: 2
-    rebuild_dataset: false
-    test_data: ../../data/Avazu/avazu_x1_normalized/test.parquet
-    train_data: ../../data/Avazu/avazu_x1_normalized/train.parquet
-    valid_data: ../../data/Avazu/avazu_x1_normalized/valid.parquet
+    rebuild_dataset: true
+    test_data: ../../data/Avazu/avazu_x1_normalized/test.csv
+    train_data: ../../data/Avazu/avazu_x1_normalized/train.csv
+    valid_data: ../../data/Avazu/avazu_x1_normalized/valid.csv
 
 avazu_x2_normalized:
-    data_format: parquet
+    data_format: csv
     data_root: ../../data/Avazu/
     feature_cols:
     -   active: true
@@ -102,10 +102,10 @@ avazu_x2_normalized:
     - {active: true, dtype: str, name: weekend, preprocess: convert_weekend, type: categorical}
     label_col: {dtype: float, name: label}
     min_categr_count: 2
-    rebuild_dataset: false
-    test_data: ../../data/Avazu/avazu_x2_normalized/test.parquet
-    train_data: ../../data/Avazu/avazu_x2_normalized/train.parquet
-    valid_data: ../../data/Avazu/avazu_x2_normalized/valid.parquet
+    rebuild_dataset: true
+    test_data: ../../data/Avazu/avazu_x2_normalized/test.csv
+    train_data: ../../data/Avazu/avazu_x2_normalized/train.csv
+    valid_data: ../../data/Avazu/avazu_x2_normalized/valid.csv
 
 avazu_x1_sample20:
     data_format: csv

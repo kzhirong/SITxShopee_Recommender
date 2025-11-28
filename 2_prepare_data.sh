@@ -114,8 +114,10 @@ fi
 
 echo ""
 echo "Next steps:"
-echo "  1. Download baseline checkpoint from Google Drive (or train your own)"
-echo "  2. Start training:"
-echo "     bash 5.train_llm_ctr_phase1.sh"
+echo "  1. Train baseline DeepFM model:"
+echo "     bash 3_train_baseline.sh"
+echo ""
+echo "  Note: First run will create feature_map.json files (~2-3 min preprocessing)"
+echo "        Subsequent runs will skip this step automatically"
 echo ""
 echo "================================================================================"
