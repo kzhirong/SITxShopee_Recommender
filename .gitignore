@@ -1,0 +1,68 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+ENV/
+*.egg-info/
+dist/
+build/
+
+# Data files
+data/Avazu/Avazu_x1/
+data/Avazu/Avazu_x2/
+data/Avazu/avazu_x4_3bbbc4c9/
+data/Avazu/avazu_x1_normalized/
+data/Avazu/avazu_x2_normalized/
+data/Avazu/avazu_x4_normalized/
+data/Avazu/avazu_x1_sample20/
+data/Avazu/avazu_x2_sample20/
+*.csv
+*.parquet
+*.npz
+*.h5
+
+# Model checkpoints and outputs
+checkpoints/
+model_zoo/**/DeepFM_*.model
+*.pt
+*.pth
+*.ckpt
+*.safetensors
+
+# Training outputs
+output/
+logs/
+runs/
+/tmp/
+
+# Jupyter
+.ipynb_checkpoints/
+*.ipynb
+
+# System files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Environment
+.env
+.envrc
+
+# Cache
+.cache/
+*.log

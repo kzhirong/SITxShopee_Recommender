@@ -272,8 +272,8 @@ def main():
                        help='Hidden units for GEN encoder (default: [2000, 2000, 2000, 2000])')
     parser.add_argument('--projector_hidden_dim', type=int, default=2048,
                        help='Projector hidden dimension (default: 2048)')
-    parser.add_argument('--llm_dim', type=int, default=896,
-                       help='LLM embedding dimension for Qwen3-0.6B (default: 896)')
+    parser.add_argument('--llm_dim', type=int, default=None,
+                       help='LLM embedding dimension (auto-detected from model config, this arg kept for documentation)')
 
     # Paths
     parser.add_argument('--baseline_checkpoint', type=str, required=True,
